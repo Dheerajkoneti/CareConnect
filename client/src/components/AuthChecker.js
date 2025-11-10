@@ -1,15 +1,23 @@
-// client/src/components/AuthChecker.js (Final Check Component)
-import React from 'react';
-import LandingPage from '../pages/LandingPage';
-import DashboardHome from '../pages/DashboardHome'; // Correct authenticated landing page
+import React, { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+// ✅ AuthChecker redirects instead of rendering pages directly.
+// This keeps routing stable and prevents breaking other routes.
 
 const AuthChecker = () => {
-    // Check local storage for the JWT token
-    const isAuthenticated = localStorage.getItem('token');
+    const navigate = useNavigate();
 
-    // CRITICAL LOGIC: If token exists, render the protected DashboardHome (the main hub),
-    // otherwise, render the public LandingPage.
-    return isAuthenticated ? <DashboardHome /> : <LandingPage />;
+    useEffect(() => {
+        const isAuthenticated = localStorage.getItem("token");
+
+        if (isAuthenticated) {
+            navigate("/dashboard");   // ✅ If logged in → go to dashboard
+        } else {
+            navigate("/landing");     // ✅ If NOT logged in → go to landing page
+        }
+    }, [navigate]);
+
+    return null; // ✅ Nothing renders, just redirects.
 };
 
 export default AuthChecker;
