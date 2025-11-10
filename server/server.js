@@ -13,11 +13,15 @@ require("dotenv").config();
 // ✅ FIREBASE ADMIN SDK SETUP
 // ------------------------------------------------------
 const admin = require("firebase-admin");
-const serviceAccount = require(path.join(__dirname, "serviceAccountKey.json"));
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+if (process.env.FIREBASE_CONFIG) {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
+
 
 // ------------------------------------------------------
 // ✅ Express App + HTTP Server
