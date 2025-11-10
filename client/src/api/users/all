@@ -1,0 +1,30 @@
+app.get("/api/users/all", async (_req, res) => {
+  try {
+    const users = await User.find(
+      {},
+      {
+        _id: 1,
+        fullName: 1,
+        name: 1,
+        email: 1,
+        profilePic: 1,
+        status: 1,
+        customStatus: 1,
+        lastActive: 1
+      }
+    ).lean();
+
+    const formatted = users.map(u => ({
+      _id: u._id,
+      name: u.fullName || u.name || u.email.split("@")[0], // ✅ SHOW FULL NAME ALWAYS
+      profilePic: u.profilePic || "",
+      status: u.customStatus || u.status || "",
+      lastActive: u.lastActive || null
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error("❌ /api/users/all failed:", err);
+    res.status(500).json({ error: true, message: err.message });
+  }
+});
