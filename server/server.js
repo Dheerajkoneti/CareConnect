@@ -1,12 +1,12 @@
 // =============================================
 // ✅ CARECONNECT — MASTER BACKEND SERVER FILE
 // =============================================
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const http = require("http");
 const { Server } = require("socket.io");
-const path = require("path");
 const session = require("express-session");   // ✅ Added
 const passport = require("passport");         // ✅ Required for OAuth
 
@@ -16,12 +16,25 @@ require("./config/passport"); // ✅ Load Google OAuth Strategy
 // ------------------------------------------------------
 // ✅ FIREBASE ADMIN SDK SETUP
 // ------------------------------------------------------
+// ------------------------------------------------------
+// ✅ FIREBASE ADMIN SDK SETUP (RENDER SAFE)
+// ------------------------------------------------------
 const admin = require("firebase-admin");
-const serviceAccount = require(path.join(__dirname, "serviceAccountKey.json"));
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error("❌ FIREBASE_SERVICE_ACCOUNT env variable missing");
+} else {
+  const serviceAccount = JSON.parse(
+    process.env.FIREBASE_SERVICE_ACCOUNT
+  );
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+
+  console.log("✅ Firebase Admin Initialized");
+}
+
 
 // ------------------------------------------------------
 // ✅ Express App + HTTP Server
@@ -34,10 +47,14 @@ const server = http.createServer(app);
 // ------------------------------------------------------
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: [
+      "http://localhost:3000",
+      process.env.CLIENT_URL,
+    ],
     credentials: true,
   })
 );
+
 
 app.use(express.json());
 
@@ -135,11 +152,15 @@ app.get("/api/users/all", async (_req, res) => {
 // ======================================================
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: [
+      "http://localhost:3000",
+      process.env.CLIENT_URL,
+    ],
     methods: ["GET", "POST"],
     credentials: true,
   },
 });
+
 
 // ✅ Real-Time Post Events (likes, comments, edits, deletes)
 const postEvents = require("./socket/postEvents");
