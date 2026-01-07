@@ -1,6 +1,7 @@
 // client/src/components/Sidebar.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { FaPhoneAlt } from "react-icons/fa";
 import {
   FaComments,
   FaChartLine,
@@ -51,17 +52,33 @@ const Sidebar = () => {
     { name: "Community Chat", path: "/community", icon: FaUsers },
     { name: "AI Companion Chat", path: "/ai-chat", icon: FaRobot },
     { name: "Volunteer Support", path: "/volunteers", icon: FaHandHoldingHeart },
+    { name: "Voice Call", path: "/voice-call", icon: FaPhoneAlt },
     { name: "Video Call (Test)", path: "/video-call", icon: FaVideo },
-    { name: "Wellness Tips", path: "/wellness", icon: () => <span style={{ color: '#00A884', fontSize: '16px' }}>🌿</span> },
+    {
+      name: "Wellness Tips",
+      path: "/wellness",
+      emoji: "🌿"
+    },
     { name: "Community Resources", path: "/resources", icon: FaGlobe },
     { name: "Progress & Insights", path: "/progress", icon: FaChartLine },
   ];
 
   const highlightColor = '#3498DB';
 
-  const renderIcon = (IconComponent, style = {}) => {
-    if (typeof IconComponent === 'function') return IconComponent();
-    return <IconComponent style={{ ...styles.icon, ...style }} />;
+  // ✅ FIXED ICON RENDERER
+  const renderIcon = (item) => {
+    if (item.emoji) {
+      return (
+        <span style={{ fontSize: '16px', marginRight: isOpen ? '10px' : '0' }}>
+          {item.emoji}
+        </span>
+      );
+    }
+
+    const IconComponent = item.icon;
+    return (
+      <IconComponent style={{ ...styles.icon, ...item.iconStyle }} />
+    );
   };
 
   return (
@@ -108,7 +125,7 @@ const Sidebar = () => {
                 onClick={() => navigate(item.path)}
                 title={item.name}
               >
-                {renderIcon(item.icon, item.iconStyle)}
+                {renderIcon(item)}
                 {isOpen && <span>{item.name}</span>}
               </div>
             );
@@ -136,7 +153,7 @@ const Sidebar = () => {
   );
 };
 
-// 🎨 Styles
+// 🎨 Styles (UNCHANGED)
 const styles = {
   layout: {
     display: 'flex',
@@ -150,7 +167,6 @@ const styles = {
     boxShadow: '4px 0 15px rgba(0,0,0,0.4)',
     zIndex: 10,
     position: 'relative',
-    transition: 'width 0.3s ease-in-out',
   },
   toggleButton: {
     position: 'fixed',

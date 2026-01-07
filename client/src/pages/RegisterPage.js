@@ -78,19 +78,6 @@ function RegisterPage() {
           </span>
         </p>
 
-        <div style={styles.googleButtonContainer}>
-          <button
-            onClick={handleSocialRegister}
-            style={styles.googleButton}
-            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
-            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1.0)')}
-          >
-            <FaGoogle size={18} style={styles.googleIcon} /> Sign up with Google
-          </button>
-        </div>
-
-        <p style={styles.orSeparator}>Or with email and password</p>
-
         {/* Registration Form */}
         <form onSubmit={handleSubmit} style={styles.form}>
           <label style={styles.label}>Full Name</label>

@@ -12,7 +12,6 @@ const ProfilePage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ fullName: "", bio: "" });
   const [profilePreview, setProfilePreview] = useState(null);
-
   const [editMode, setEditMode] = useState(false);
   const [editText, setEditText] = useState("");
   const [activePost, setActivePost] = useState(null);
@@ -21,26 +20,29 @@ const ProfilePage = () => {
   const userId = localStorage.getItem("userId");
 
   // ===================================================
-  // ✅ Load Profile + My Posts
+  // ✅ Load Profile + Posts + Requests
   // ===================================================
   useEffect(() => {
     const loadData = async () => {
       const headers = { Authorization: `Bearer ${token}` };
 
+      // ✅ Load User
       const userRes = await axios.get(
         `http://localhost:5000/api/users/${userId}`,
         { headers }
       );
-
       setUser(userRes.data);
+
       setFormData({
         fullName: userRes.data.fullName,
         bio: userRes.data.bio || "",
       });
 
+      // ✅ Load Posts
       const postsRes = await axios.get(`${API}/posts`);
       setMyPosts(postsRes.data.filter((p) => p.authorId === userId));
 
+      // ✅ Load Requests
       const reqRes = await axios.get(
         `http://localhost:5000/api/users/${userId}/requests`,
         { headers }
@@ -50,12 +52,11 @@ const ProfilePage = () => {
 
     loadData();
 
-    // ===================================================
-    // ✅ Socket Listeners
-    // ===================================================
+    // ✅ Socket Updates
     socket.on("post:new", (post) => {
-      if (post.authorId === userId)
+      if (post.authorId === userId) {
         setMyPosts((prev) => [post, ...prev]);
+      }
     });
 
     socket.on("post:delete", (postId) => {
@@ -73,7 +74,7 @@ const ProfilePage = () => {
   }, [userId, token]);
 
   // ===================================================
-  // ✅ Edit Profile
+  // ✅ Edit Profile Functions
   // ===================================================
   const handleInputChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -144,131 +145,123 @@ const ProfilePage = () => {
   if (!user) return <p>Loading...</p>;
 
   return (
-    <div style={styles.pageContainer}>
-      {/* PROFILE SECTION */}
+    <div style={styles.page}>
+
+      {/* ✅ PROFILE HEADER CARD */}
       <div style={styles.profileCard}>
-        <div style={styles.profileTop}>
-          <div style={styles.profileImageWrapper}>
-            <img
-              src={
-                profilePreview
-                  ? profilePreview
-                  : user.profilePic
-                  ? `http://localhost:5000${user.profilePic}`
-                  : "/default-profile.png"
-              }
-              alt="Profile"
-              style={styles.profileImage}
+        <div style={styles.avatarWrapper}>
+          <img
+            src={
+              profilePreview
+                ? profilePreview
+                : user.profilePic
+                ? `http://localhost:5000${user.profilePic}`
+                : "/default-profile.png"
+            }
+            style={styles.avatar}
+            alt="Profile"
+          />
+
+          {isEditing && (
+            <label style={styles.uploadIcon}>
+              📷
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleProfilePicChange}
+                style={{ display: "none" }}
+              />
+            </label>
+          )}
+        </div>
+
+        {/* ✅ Profile Info */}
+        <h2 style={styles.name}>{user.fullName}</h2>
+        <p style={styles.email}>{user.email}</p>
+        <p style={styles.role}>{user.role}</p>
+
+        {isEditing ? (
+          <div style={styles.editBox}>
+            <input
+              name="fullName"
+              value={formData.fullName}
+              onChange={handleInputChange}
+              style={styles.input}
             />
 
-            {isEditing && (
-              <label style={styles.uploadLabel}>
-                📷
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfilePicChange}
-                  style={{ display: "none" }}
-                />
-              </label>
-            )}
+            <textarea
+              name="bio"
+              value={formData.bio}
+              onChange={handleInputChange}
+              style={styles.textarea}
+            />
+
+            <button style={styles.saveBtn} onClick={handleSaveProfile}>
+              Save
+            </button>
+            <button style={styles.cancelBtn} onClick={() => setIsEditing(false)}>
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <>
+            <p style={styles.bio}>{user.bio}</p>
+
+            <button style={styles.editBtn} onClick={() => setIsEditing(true)}>
+              Edit Profile
+            </button>
+          </>
+        )}
+
+        {/* ✅ Stats Row */}
+        <div style={styles.statsRow}>
+          <div style={styles.stat}>
+            <strong>{myPosts.length}</strong>
+            <span>Posts</span>
           </div>
 
-          <div style={styles.profileInfo}>
-            {isEditing ? (
-              <>
-                <input
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleInputChange}
-                  style={styles.editInput}
-                />
-                <textarea
-                  name="bio"
-                  value={formData.bio}
-                  onChange={handleInputChange}
-                  style={styles.editTextarea}
-                />
-
-                <button style={styles.saveButton} onClick={handleSaveProfile}>
-                  Save
-                </button>
-                <button
-                  style={styles.cancelButton}
-                  onClick={() => setIsEditing(false)}
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <>
-                <h2 style={styles.userName}>{user.fullName}</h2>
-                <p style={styles.userEmail}>{user.email}</p>
-                <p style={styles.userRole}>{user.role}</p>
-                <p style={styles.userBio}>{user.bio}</p>
-
-                <button
-                  style={styles.editButton}
-                  onClick={() => setIsEditing(true)}
-                >
-                  Edit Profile
-                </button>
-              </>
-            )}
-
-            <div style={styles.statsRow}>
-              <div style={styles.statBox}>
-                <strong>{myPosts.length}</strong>
-                <span>Posts</span>
-              </div>
-              <div style={styles.statBox}>
-                <strong>{requests.length}</strong>
-                <span>Requests</span>
-              </div>
-            </div>
+          <div style={styles.stat}>
+            <strong>{requests.length}</strong>
+            <span>Requests</span>
           </div>
         </div>
       </div>
 
-      {/* MY POSTS GRID */}
+      {/* ✅ SECTION TITLE */}
       <h3 style={styles.sectionTitle}>My Posts</h3>
 
-      <div style={styles.postsGrid}>
+      {/* ✅ POSTS GRID */}
+      <div style={styles.grid}>
         {myPosts.length === 0 ? (
           <p style={styles.noPosts}>You have no posts yet.</p>
         ) : (
           myPosts.map((post) => (
             <div key={post._id} style={styles.postCard}>
-              <p style={styles.postContent}>{post.content}</p>
+              <p style={styles.postText}>{post.content}</p>
 
               {post.mediaUrl && (
-                <>
-                  {post.mediaType === "image" ? (
-                    <img
-                      src={`http://localhost:5000${post.mediaUrl}`}
-                      style={styles.postImage}
-                      alt=""
-                    />
-                  ) : (
-                    <video
-                      controls
-                      src={`http://localhost:5000${post.mediaUrl}`}
-                      style={styles.postImage}
-                    />
-                  )}
-                </>
+                post.mediaType === "image" ? (
+                  <img
+                    src={`http://localhost:5000${post.mediaUrl}`}
+                    alt=""
+                    style={styles.postMedia}
+                  />
+                ) : (
+                  <video
+                    controls
+                    src={`http://localhost:5000${post.mediaUrl}`}
+                    style={styles.postMedia}
+                  />
+                )
               )}
 
-              <div style={styles.postActions}>
-                <button
-                  style={styles.actionBtn}
-                  onClick={() => openEdit(post)}
-                >
+              <div style={styles.actions}>
+                <button style={styles.editSmallBtn} onClick={() => openEdit(post)}>
                   ✏ Edit
                 </button>
 
                 <button
-                  style={styles.actionBtnDelete}
+                  style={styles.deleteSmallBtn}
                   onClick={() => deletePost(post._id)}
                 >
                   🗑 Delete
@@ -279,26 +272,18 @@ const ProfilePage = () => {
         )}
       </div>
 
-      {/* EDIT POST MODAL */}
+      {/* ✅ Edit Modal */}
       {editMode && (
         <div style={styles.modalOverlay}>
           <div style={styles.modal}>
             <h3>Edit Post</h3>
-
             <textarea
-              style={styles.editTextarea}
+              style={styles.textarea}
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
             />
-
-            <button style={styles.saveButton} onClick={saveEdit}>
-              Save
-            </button>
-
-            <button
-              style={styles.cancelButton}
-              onClick={() => setEditMode(false)}
-            >
+            <button style={styles.saveBtn} onClick={saveEdit}>Save</button>
+            <button style={styles.cancelBtn} onClick={() => setEditMode(false)}>
               Cancel
             </button>
           </div>
@@ -308,18 +293,189 @@ const ProfilePage = () => {
   );
 };
 
-/* ✅ STYLES (Trimmed for clarity; your full style block remains unchanged) */
+/* ✅ Modern Instagram-Style CSS (inline styles) */
 const styles = {
-  pageContainer: {
+  page: {
+    padding: "20px",
+    minHeight: "100vh",
+    background: "#fafafa",
     fontFamily: "Poppins, sans-serif",
-    padding: "40px",
   },
+
+  // PROFILE CARD
   profileCard: {
-    background: "white",
-    padding: "30px",
-    borderRadius: "20px",
+    background: "#fff",
+    borderRadius: 20,
+    padding: 30,
+    textAlign: "center",
+    boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+    maxWidth: 500,
+    margin: "0 auto 30px",
   },
-  // ... KEEP ALL YOUR EXISTING STYLE CODE ...
+
+  avatarWrapper: { position: "relative", width: 140, margin: "0 auto" },
+
+  avatar: {
+    width: 140,
+    height: 140,
+    objectFit: "cover",
+    borderRadius: "50%",
+    border: "4px solid white",
+    boxShadow: "0 0 10px rgba(0,0,0,0.2)",
+  },
+
+  uploadIcon: {
+    position: "absolute",
+    bottom: 5,
+    right: 0,
+    background: "#fff",
+    padding: "5px 10px",
+    borderRadius: 20,
+    fontSize: 20,
+    cursor: "pointer",
+    boxShadow: "0 0 6px rgba(0,0,0,0.2)",
+  },
+
+  name: { marginTop: 15, fontSize: 25, fontWeight: "700" },
+  email: { color: "#666" },
+  role: { color: "#9b59b6", fontWeight: "600" },
+  bio: { marginTop: 10, color: "#444" },
+
+  editBtn: {
+    marginTop: 12,
+    background: "#6c5ce7",
+    color: "#fff",
+    padding: "8px 20px",
+    borderRadius: 10,
+    border: "none",
+    cursor: "pointer",
+  },
+
+  editBox: { marginTop: 20 },
+
+  input: {
+    width: "100%",
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #ddd",
+    marginBottom: 10,
+  },
+
+  textarea: {
+    width: "100%",
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #ddd",
+    height: 100,
+    marginBottom: 10,
+  },
+
+  saveBtn: {
+    width: "100%",
+    padding: 12,
+    background: "#2ecc71",
+    color: "#fff",
+    borderRadius: 12,
+    border: "none",
+    marginBottom: 10,
+    cursor: "pointer",
+  },
+  cancelBtn: {
+    width: "100%",
+    padding: 12,
+    background: "#e74c3c",
+    color: "#fff",
+    borderRadius: 12,
+    border: "none",
+    cursor: "pointer",
+  },
+
+  statsRow: {
+    marginTop: 20,
+    display: "flex",
+    justifyContent: "space-around",
+  },
+
+  stat: { textAlign: "center" },
+
+  // POSTS GRID
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "600",
+    margin: "25px 0 10px 0",
+    textAlign: "center",
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+    gap: 15,
+    maxWidth: 600,
+    margin: "0 auto",
+  },
+
+  postCard: {
+    background: "#fff",
+    borderRadius: 12,
+    padding: 10,
+    boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+  },
+
+  postText: { marginBottom: 10, color: "#555" },
+
+  postMedia: {
+    width: "100%",
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+
+  actions: {
+    display: "flex",
+    justifyContent: "space-between",
+  },
+
+  editSmallBtn: {
+    background: "#6c5ce7",
+    color: "#fff",
+    padding: "5px 10px",
+    borderRadius: 8,
+    border: "none",
+    cursor: "pointer",
+    fontSize: 12,
+  },
+
+  deleteSmallBtn: {
+    background: "#e74c3c",
+    color: "#fff",
+    padding: "5px 10px",
+    borderRadius: 8,
+    border: "none",
+    cursor: "pointer",
+    fontSize: 12,
+  },
+
+  noPosts: { textAlign: "center", color: "#777" },
+
+  // MODAL
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    background: "rgba(0,0,0,0.4)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  modal: {
+    background: "#fff",
+    padding: 20,
+    borderRadius: 15,
+    width: "90%",
+    maxWidth: 400,
+  },
 };
 
 export default ProfilePage;

@@ -1,11 +1,6 @@
-// client/src/utils/socket.js
 import { io } from "socket.io-client";
 
-// Use the backend URL your app already uses
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
-
-const socket = io(SOCKET_URL, {
-  autoConnect: true,
+const socket = io(process.env.REACT_APP_API_URL, {
   transports: ["websocket"],
   withCredentials: true,
 });

@@ -8,7 +8,7 @@ router.post("/add", protect, async (req, res) => {
   try {
     const log = await MoodLog.create({
       userId: req.user._id,
-      mood: req.body.mood,
+      score: req.body.score,   // ✅ FIXED
       note: req.body.note || "",
     });
 

@@ -67,16 +67,17 @@ function AIChatPage() {
 
         try {
             // ✅ FIXED: Backend expects { message: text }
-            const res = await axios.post(
-                "http://localhost:5000/api/ai/message",
-                { message: text },
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "application/json",
-                    },
-                }
-            );
+           const res = await axios.post(
+    "http://localhost:5000/api/ai/chat",
+    { message: text },
+    {
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+    }
+);
+
 
             const reply = res.data.response;
 

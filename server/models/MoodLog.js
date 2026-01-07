@@ -8,7 +8,7 @@ const MoodLogSchema = new mongoose.Schema(
       required: true,
     },
     score: {
-      type: Number, // 1–10 mood rating
+      type: Number,  // 1–10 mood rating
       required: true,
     },
     note: {

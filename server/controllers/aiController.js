@@ -1,85 +1,45 @@
-const AIChatHistory = require('../models/AIChatHistory');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-if (!GEMINI_API_KEY) {
-    console.error("❌ FATAL: GEMINI_API_KEY missing in .env");
-}
-
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-// AI persona
-const AI_PERSONA =
-    "You are CareConnect, an empathetic emotional-support companion. Be warm, supportive, and concise. Never give medical or professional advice.";
-
-// Sentiment tagging
-const checkSentiment = (text) => {
-    text = text.toLowerCase();
-    if (text.includes("sad") || text.includes("lonely") || text.includes("anxious")) return "lonely";
-    if (text.includes("happy") || text.includes("good")) return "happy";
-    return "neutral";
-};
+// Initialize the Gemini client using the environment variable
+const ai = new GoogleGenAI({ 
+    apiKey: process.env.GEMINI_API_KEY 
+});
 
 exports.chatWithAI = async (req, res) => {
     try {
         const { message } = req.body;
-        const userId = req.user._id;
 
         if (!message) {
-            return res.status(400).json({ message: "Message is required." });
+            return res.status(200).json({
+                response: "I'm here with you ❤️. What would you like to talk about?",
+            });
         }
 
-        // Load or create chat history
-        let history = await AIChatHistory.findOne({ user: userId });
-        if (!history) {
-            history = new AIChatHistory({ user: userId, messages: [] });
-        }
-
-        // Save user message
-        history.messages.push({ role: "user", content: message });
-
-        // ✅ FORMAT FOR GEMINI v1 — SIMPLE ARRAY OF STRINGS
-        const chatHistory = history.messages.map((m) =>
-            `${m.role}: ${m.content}`
-        );
-
-        // ✅ USE THE "flash" MODEL
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash"
+        // --- GEMINI API CALL ---
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash", // A fast and powerful model for chat
+            contents: message, 
+            config: {
+                // System instructions for CareConnect
+                systemInstruction: "You are CareConnect, a warm and empathetic AI companion. Be supportive and ask gentle questions. Keep your responses concise and helpful.",
+            },
         });
+        // --- END GEMINI API CALL ---
 
-        // ✅ Call Gemini using generateContent() CORRECT FORMAT
-        const result = await model.generateContent([
-            AI_PERSONA,
-            ...chatHistory,
-            `user: ${message}`
-        ]);
+        // Gemini response structure (uses .text property)
+        const aiResponseText = response.text;
 
-        const aiReply = result.response.text().trim();
-
-        // Sentiment detection
-        const sentiment = checkSentiment(message);
-
-        // Save AI reply
-        history.messages.push({
-            role: "ai",
-            content: aiReply,
-            sentiment
-        });
-
-        await history.save();
-
-        res.json({
-            response: aiReply,
-            sentiment,
-            wouldRecommendVolunteer: sentiment === "lonely"
+        return res.status(200).json({
+            response: aiResponseText,
         });
 
     } catch (error) {
-        console.error("🔥 Gemini Error:", error);
-        res.status(500).json({
-            message: "AI Service unavailable. Check API key or request format."
+        console.error("GEMINI API ERROR:", error.message);
+        
+        // Safe, user-friendly fallback
+        return res.status(200).json({
+            response:
+                "I'm here with you ❤️. It seems my system is busy right now, but you’re not alone.",
         });
     }
 };

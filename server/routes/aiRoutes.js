@@ -1,12 +1,9 @@
-// server/routes/aiRoutes.js
-const express = require('express');
-const { protect } = require('../middleware/authMiddleware');
-const { chatWithAI } = require('../controllers/aiController');
-
+const express = require("express");
 const router = express.Router();
+const { chatWithAI } = require("../controllers/aiController");
+const { protect } = require("../middleware/authMiddleware");
 
-// ✅ AI Companion Chat Endpoint
-// Uses your Gemini 2.0 logic inside aiController.js
-router.post('/message', protect, chatWithAI);
+// Protected AI route
+router.post("/chat", protect, chatWithAI);
 
 module.exports = router;

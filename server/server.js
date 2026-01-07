@@ -7,21 +7,21 @@ const mongoose = require("mongoose");
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
+const session = require("express-session");   // ✅ Added
+const passport = require("passport");         // ✅ Required for OAuth
+
 require("dotenv").config();
+require("./config/passport"); // ✅ Load Google OAuth Strategy
 
 // ------------------------------------------------------
 // ✅ FIREBASE ADMIN SDK SETUP
 // ------------------------------------------------------
 const admin = require("firebase-admin");
+const serviceAccount = require(path.join(__dirname, "serviceAccountKey.json"));
 
-if (process.env.FIREBASE_CONFIG) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
-
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 // ------------------------------------------------------
 // ✅ Express App + HTTP Server
@@ -40,9 +40,20 @@ app.use(
 );
 
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// ✅ Serve Uploaded Files
+// ✅ Session + Passport Middleware (REQUIRED for Google OAuth)
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "careconnectsecret123",
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// ✅ Serve uploaded files (Direct Chat + Community)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ------------------------------------------------------
@@ -55,7 +66,7 @@ mongoose
 
 
 // ------------------------------------------------------
-// ✅ ROUTES IMPORT
+// ✅ ALL EXISTING ROUTES
 // ------------------------------------------------------
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
@@ -67,18 +78,15 @@ const internshipRoutes = require("./routes/internshipRoutes");
 const statusRoutes = require("./routes/statusRoutes");
 const communityChatRoutes = require("./routes/communityChatRoutes");
 const messageRoutes = require("./routes/messageRoutes");
+const communityFeedRoutes = require("./routes/communityFeedRoutes");
 const taskRoutes = require("./routes/taskRoutes");
-const analyticsRoutes = require("./routes/analyticsRoutes"); // ✅ new
+const callRoutes = require("./routes/callRoutes");
+const moodRoutes = require("./routes/moodRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const User = require("./models/User");
-const CallLog = require("./models/CallLog"); // ✅ NEW MODEL
-const moodRoutes = require("./routes/moodRoutes");
-const callLogRoutes = require("./routes/callLogRoutes");
 
-
-// ------------------------------------------------------
-// ✅ REGISTER ROUTES
-// ------------------------------------------------------
+// ✅ Register all API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
@@ -89,10 +97,11 @@ app.use("/api/internships", internshipRoutes);
 app.use("/api/status", statusRoutes);
 app.use("/api/community-chat", communityChatRoutes);
 app.use("/api", messageRoutes);
+app.use("/api/community", communityFeedRoutes);
 app.use("/api/tasks", taskRoutes);
-app.use("/api/analytics", analyticsRoutes); // ✅ NEW
+app.use("/api/calls", callRoutes);
 app.use("/api/mood", moodRoutes);
-app.use("/api/calllogs", callLogRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 
 // ======================================================
@@ -121,7 +130,6 @@ app.get("/api/users/all", async (_req, res) => {
   }
 });
 
-
 // ======================================================
 // ✅ SOCKET.IO — FULL REALTIME SYSTEM
 // ======================================================
@@ -133,27 +141,20 @@ const io = new Server(server, {
   },
 });
 
-// ✅ Load Post Event Hooks
+// ✅ Real-Time Post Events (likes, comments, edits, deletes)
 const postEvents = require("./socket/postEvents");
 postEvents(io);
 
-// ✅ Active Users Store
 const onlineUsers = new Map();
 
 function broadcastPresence() {
   io.emit("presence:list", Array.from(onlineUsers.values()));
 }
 
-
-// ✅ ✅ ✅ NEW: Store Active Call Sessions
-let activeCalls = {};
-
 io.on("connection", (socket) => {
   console.log("🔗 Socket connected:", socket.id);
 
-  // ==================================================
   // ✅ USER SETUP
-  // ==================================================
   socket.on("setup", (user) => {
     onlineUsers.set(socket.id, {
       socketId: socket.id,
@@ -166,9 +167,7 @@ io.on("connection", (socket) => {
     broadcastPresence();
   });
 
-  // ==================================================
   // ✅ STATUS CHANGE
-  // ==================================================
   socket.on("status_change", ({ status, customStatus }) => {
     const u = onlineUsers.get(socket.id);
     if (!u) return;
@@ -179,49 +178,12 @@ io.on("connection", (socket) => {
     broadcastPresence();
   });
 
-  // ==================================================
-  // ✅ DIRECT CHAT
-  // ==================================================
+  // ✅ DIRECT MESSAGES
   socket.on("send_message", (msg) => {
     io.emit("receive_message", msg);
   });
 
-  // ==================================================
-  // ✅ WEBRTC CALL LOGGING (NEW FEATURE)
-  // ==================================================
-
-  // ✅ Call started
-  socket.on("call:request", (data) => {
-    activeCalls[data.callId] = {
-      callerId: data.from,
-      receiverId: data.to,
-      startedAt: new Date(),
-    };
-  });
-
-  // ✅ Call ended — log it
-  socket.on("call:end", async (data) => {
-    const call = activeCalls[data.callId];
-    if (!call) return;
-
-    const endedAt = new Date();
-    const duration = Math.round((endedAt - call.startedAt) / 1000);
-
-    await CallLog.create({
-      callerId: call.callerId,
-      receiverId: call.receiverId,
-      startedAt: call.startedAt,
-      endedAt,
-      duration,
-      status: "completed",
-    });
-
-    delete activeCalls[data.callId];
-  });
-
-  // ==================================================
-  // ✅ WEBRTC SIGNALING (unchanged)
-  // ==================================================
+  // ✅ WEBRTC CALLING
   socket.on("call:request", (data) => io.to(data.to).emit("call:incoming", data));
   socket.on("call:accept", (data) => io.to(data.to).emit("call:accepted", data));
   socket.on("call:reject", (data) => io.to(data.to).emit("call:rejected", data));
@@ -232,33 +194,29 @@ io.on("connection", (socket) => {
     socket.to(data.to).emit("webrtc_ice_candidate", data)
   );
 
-  // ==================================================
   // ✅ COMMUNITY CHAT
-  // ==================================================
   socket.on("chat:new", (msg) => io.emit("chat:new", msg));
   socket.on("chat:delete", (id) => io.emit("chat:delete", id));
   socket.on("chat:edit", (msg) => io.emit("chat:edit", msg));
   socket.on("chat:reaction", (msg) => io.emit("chat:reaction", msg));
-  socket.on("chat:typing", (d) => socket.broadcast.emit("chat:typing", d));
-  socket.on("chat:typing_stop", (d) => socket.broadcast.emit("chat:typing_stop", d));
+  socket.on("chat:typing", (data) => socket.broadcast.emit("chat:typing", data));
+  socket.on("chat:typing_stop", (data) =>
+    socket.broadcast.emit("chat:typing_stop", data)
+  );
 
   socket.on("chat:seen", (userId) => io.emit("chat:seen", userId));
 
-  // ==================================================
   // ✅ DISCONNECT
-  // ==================================================
   socket.on("disconnect", () => {
     onlineUsers.delete(socket.id);
     broadcastPresence();
   });
 });
 
-
 // ======================================================
 // ✅ Root
 // ======================================================
 app.get("/", (_, res) => res.send("🌐 CareConnect Backend Running"));
-
 
 // ======================================================
 // ✅ Start Server

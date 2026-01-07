@@ -72,16 +72,6 @@ function LoginPage() {
           <h1 style={styles.logo}>CareConnect</h1>
         </div>
         <h2 style={styles.leftHeader}>Log in to your account</h2>
-
-        {/* Google Sign-In */}
-        <div style={styles.googleButtonContainer}>
-          <button onClick={handleGoogleSignIn} style={styles.googleButton}>
-            <FaGoogle size={18} style={{ marginRight: '10px' }} /> Sign in with Google
-          </button>
-        </div>
-
-        <p style={styles.orSeparator}>or use your email address</p>
-
         {/* Email/Password Form */}
         <form onSubmit={handleSubmit} style={styles.form}>
           <label style={styles.label}>Email Address</label>

@@ -26,7 +26,7 @@ ChartJS.register(
 
 // ✅ API Endpoints
 const API_TASKS = "http://localhost:5000/api/tasks";
-const API_CALLS = "http://localhost:5000/api/calllogs";  // fixed
+const API_CALLS = "http://localhost:5000/api/calls";   // ✅ FIXED
 const API_POSTS = "http://localhost:5000/api/community";
 const API_MOOD = "http://localhost:5000/api/mood";
 
@@ -56,13 +56,12 @@ function ProgressPage() {
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
-    // Update task in UI
     setTasks((prev) =>
       prev.map((t) => (t._id === task._id ? res.data.task : t))
     );
   };
 
-  // ✅ LOAD CALL LOGS
+  // ✅ LOAD CALL LOGS (FIXED)
   const loadCallLogs = async () => {
     const res = await axios.get(`${API_CALLS}/user/${userId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -84,7 +83,6 @@ function ProgressPage() {
     setMoodLogs(res.data.logs);
   };
 
-  // ✅ Load everything at start
   useEffect(() => {
     loadTasks();
     loadCallLogs();
@@ -95,7 +93,7 @@ function ProgressPage() {
   // ✅ TASK ANALYTICS
   const completedTasks = tasks.filter((t) => t.completed);
   const pendingTasks = tasks.filter((t) => !t.completed);
-  const addedByUser = tasks.slice(5); // after default 5 tasks
+  const addedByUser = tasks.slice(5);
 
   const totalTasks = tasks.length;
   const totalCompleted = completedTasks.length;
@@ -165,7 +163,7 @@ function ProgressPage() {
         />
       </div>
 
-      {/* ✅ ✅ TASK SECTIONS */}
+      {/* ✅ TASK SECTIONS */}
       <div style={styles.section}>
         <h2>Your Tasks</h2>
 

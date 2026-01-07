@@ -1,9 +1,6 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
-
-// ✅ Added Landing Page
-import LandingPage from './pages/LandingPage';
 
 // Core Components
 import AuthChecker from './components/AuthChecker';
@@ -22,73 +19,61 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import VideoCallPage from './pages/VideoCallPage';
 import ReelsViewer from './pages/ReelsViewer';
 import ChatPage from './pages/ChatPage';
-import ChatsPage from './pages/ChatsPage';
-
-// 🎯 Community Chat
 import CommunityChat from './pages/CommunityChat';
 import GroupChatView from './pages/GroupChatView';
-
-// ✅ Active Chat Page
-import ActiveChatPage from './pages/ActiveChatPage';
+import ActiveChatPage from "./pages/ActiveChatPage";
+import LandingPage from "./pages/LandingPage";
+import VoiceCallPage from "./pages/VoiceCallPage";
+import NotificationsPage from "./pages/NotificationsPage";
 
 function App() {
   return (
     <ThemeProvider>
-      <Router future={{ v7_startTransition: true }}>
-        <div className="App">
-          <Routes>
+      <div className="App">
+        <Routes>
 
-            {/* ✅ ✅ NEW — PUBLIC LANDING PAGE AS HOME */}
-            <Route path="/" element={<LandingPage />} />
+          {/* Landing page */}
+          <Route path="/landing" element={<LandingPage />} />
 
-            {/* ✅ LOGIN SYSTEM */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
+          {/* Public */}
+          <Route path="/" element={<AuthChecker />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            {/* ✅ AUTH CHECKER FOR LOGGED-IN USERS */}
-            <Route path="/auth" element={<AuthChecker />} />
+          {/* Protected */}
+          <Route path="/dashboard" element={<DashboardHome />} />
 
-            {/* ✅ MAIN DASHBOARD */}
-            <Route path="/dashboard" element={<DashboardHome />} />
+          {/* Community */}
+          <Route path="/feed" element={<CommunityFeed />} />
+          <Route path="/reels" element={<ReelsViewer />} />
+          <Route path="/community" element={<CommunityChat />} />
+          <Route path="/community/group/:groupId" element={<GroupChatView />} />
 
-            {/* ✅ COMMUNITY FEED & REELS */}
-            <Route path="/feed" element={<CommunityFeed />} />
-            <Route path="/reels" element={<ReelsViewer />} />
+          {/* Chats */}
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat/:userId" element={<ChatPage />} />
+          <Route path="/active-chats" element={<ActiveChatPage />} />
 
-            {/* ✅ CHAT ROUTES */}
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/active-chat" element={<ChatPage />} />
-            <Route path="/chat/:userId" element={<ChatPage />} />
+          {/* AI + Wellness + Volunteers */}
+          <Route path="/ai-chat" element={<AIChatPage />} />
+          <Route path="/volunteers" element={<VolunteerPage />} />
+          <Route path="/wellness" element={<WellnessPage />} />
+          <Route path="/resources" element={<ResourcesPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/progress" element={<ProgressPage />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
+          <Route path="/video-call" element={<VideoCallPage />} />
+          
 
-            {/* ✅ WHATSAPP STYLE CHATS LIST */}
-            <Route path="/active-chats" element={<ActiveChatPage />} />
-
-            {/* ✅ COMMUNITY GROUP CHAT */}
-            <Route path="/community" element={<CommunityChat />} />
-            <Route path="/community/group/:groupId" element={<GroupChatView />} />
-
-            {/* ✅ AI + WELLNESS + VOLUNTEER */}
-            <Route path="/ai-chat" element={<AIChatPage />} />
-            <Route path="/volunteers" element={<VolunteerPage />} />
-            <Route path="/wellness" element={<WellnessPage />} />
-            <Route path="/resources" element={<ResourcesPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/progress" element={<ProgressPage />} />
-            <Route path="/feedback" element={<FeedbackPage />} />
-            <Route path="/video-call" element={<VideoCallPage />} />
-
-            {/* ✅ OLD ROUTE REDIRECT */}
-            <Route path="/volunteer-dashboard" element={<VolunteerPage />} />
-            <Route path="/landing" element={<LandingPage />} />
+          {/* Fallback */}
+          <Route path="*" element={<h1>404 Not Found</h1>} />
+          <Route path="/voice-call" element={<VoiceCallPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
 
 
-            {/* ✅ DEFAULT FALLBACK */}
-            <Route path="*" element={<h1>404 Not Found</h1>} />
-
-          </Routes>
-        </div>
-      </Router>
+        </Routes>
+      </div>
     </ThemeProvider>
   );
 }
