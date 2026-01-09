@@ -1,7 +1,11 @@
 import { io } from "socket.io-client";
 
-const socket = io(process.env.REACT_APP_API_URL, {
-  transports: ["websocket"],
+const SOCKET_URL =
+  process.env.REACT_APP_API_URL ||
+  "https://careconnect-489.onrender.com";
+
+const socket = io(SOCKET_URL, {
+  transports: ["websocket", "polling"],
   withCredentials: true,
 });
 
