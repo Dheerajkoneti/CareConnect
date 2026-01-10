@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
-import axios from 'axios';
+import api from "../utils/axiosInstance";
 import { FaUserCircle, FaRobot, FaChevronRight, FaCircle, FaMusic } from 'react-icons/fa';
-
-const API_BASE_URL = 'http://localhost:5000/api';
-
 const AI_CHAT_ENTRY = { 
     id: 'AI_COMPANION', 
     name: 'AI Companion', 
@@ -47,9 +44,9 @@ function ChatsPage() {
         const fetchUsersForChat = async () => {
             setLoading(true);
             try {
-                const config = { headers: { Authorization: `Bearer ${token}` } };
-                const response = await axios.get(`${API_BASE_URL}/users/all`, config); 
-                
+                const response = await api.get("/api/users/all", {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
                 const userProfiles = response.data
                     .filter(user => user._id !== currentUserId && user.email)
                     .map(user => ({

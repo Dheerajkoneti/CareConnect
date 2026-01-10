@@ -1,13 +1,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
-import io from "socket.io-client";
-
-const socket = io("http://localhost:5000");
-
-// ✅ Correct Community API base
-const API = "http://localhost:5000/api/community";
-
+import socket from "../utils/socket";
+const API_BASE_URL = process.env.REACT_APP_API_URL;
+const API = `${API_BASE_URL}/api/community`;
 function CommunityFeed() {
   const token = localStorage.getItem("token");
   const userId = localStorage.getItem("userId");
@@ -67,7 +63,15 @@ function CommunityFeed() {
       setPosts((prev) => prev.map((p) => (p._id === post._id ? post : p)))
     );
 
-    return () => socket.disconnect();
+    return () => {
+  socket.off("post:new");
+  socket.off("post:edit");
+  socket.off("post:delete");
+  socket.off("post:like");
+  socket.off("post:comment:new");
+  socket.off("post:comment:edit");
+  socket.off("post:comment:delete");
+};
   }, []);
 
   // ✅ Create Post
@@ -230,20 +234,19 @@ function CommunityFeed() {
                 <>
                   {p.mediaType === "image" ? (
                     <img
-                      src={`http://localhost:5000${p.mediaUrl}`}
+                      src={`${API_BASE_URL}${p.mediaUrl}`}
                       alt="media"
                       style={styles.postMedia}
                     />
                   ) : (
                     <video
                       controls
-                      src={`http://localhost:5000${p.mediaUrl}`}
+                      src={`${API_BASE_URL}${p.mediaUrl}`}
                       style={styles.postMedia}
                     />
                   )}
                 </>
               )}
-
               <div style={styles.actions}>
                 <button onClick={() => toggleLike(p._id)}>
                   ❤️ {p.likes.length}

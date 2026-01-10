@@ -1,17 +1,26 @@
+// client/src/pages/CallHistory.jsx
+
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../utils/axiosInstance";
 
 const CallHistory = () => {
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
     const fetchLogs = async () => {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(
-        "http://localhost:5000/api/calls/user/me",
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setLogs(res.data.logs);
+      try {
+        const token = localStorage.getItem("token");
+
+        const res = await api.get("/api/calls/user/me", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        setLogs(res.data.logs);
+      } catch (err) {
+        console.error("Failed to fetch call logs", err);
+      }
     };
 
     fetchLogs();
@@ -19,10 +28,10 @@ const CallHistory = () => {
 
   return (
     <div>
-      <h3>📜 Call History</h3>
+      <h3>📞 Call History</h3>
       {logs.map((log) => (
         <div key={log._id}>
-          📞 {log.status} – {new Date(log.createdAt).toLocaleString()}
+          {log.status} – {new Date(log.createdAt).toLocaleString()}
         </div>
       ))}
     </div>

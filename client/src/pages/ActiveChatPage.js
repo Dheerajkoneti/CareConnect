@@ -2,10 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import "../styles/ActiveChatPage.css";
-import axios from "axios";
-import io from "socket.io-client";
-
-const socket = io(process.env.REACT_APP_BACKEND_URL || "http://localhost:5000");
+import api from "../utils/axiosInstance";
+import socket from "../socket";
 
 // ✅ Avatar Color Generator
 function generateAvatarColor(str = "U") {
@@ -26,26 +24,35 @@ export default function ActiveChatPage() {
 
   // ✅ Fetch Users
   useEffect(() => {
-    axios.get("/api/users/all").then((res) => setUsers(res.data));
+    api
+      .get("/api/users/all")
+      .then((res) => setUsers(res.data))
+      .catch(console.error);
   }, []);
 
   // ✅ Load Chat Messages
   useEffect(() => {
     if (!activeChatUser) return;
 
-    axios
+    api
       .get(`/api/messages/${myId}/${activeChatUser._id}`)
-      .then((res) => setMessages(res.data));
+      .then((res) => setMessages(res.data))
+      .catch(console.error);
 
-    socket.emit("join-room", { sender: myId, receiver: activeChatUser._id });
+    socket.emit("join-room", {
+      sender: myId,
+      receiver: activeChatUser._id,
+    });
 
-    socket.on("receive-message", (data) => {
+    const handleReceive = (data) => {
       if (data.senderId === activeChatUser._id) {
         setMessages((prev) => [...prev, data]);
       }
-    });
+    };
 
-    return () => socket.off("receive-message");
+    socket.on("receive-message", handleReceive);
+
+    return () => socket.off("receive-message", handleReceive);
   }, [activeChatUser, myId]);
 
   // ✅ Auto scroll
@@ -67,17 +74,19 @@ export default function ActiveChatPage() {
     setMessages((prev) => [...prev, data]);
     setMsg("");
 
-    await axios.post("/api/messages/send", data);
+    await api.post("/api/messages/send", data);
   };
 
   // ✅ Send File
   const sendFile = async (file) => {
+    if (!file) return;
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("senderId", myId);
     formData.append("receiverId", activeChatUser._id);
 
-    const res = await axios.post("/api/messages/send-file", formData);
+    const res = await api.post("/api/messages/send-file", formData);
 
     socket.emit("send-message", res.data);
     setMessages((prev) => [...prev, res.data]);
@@ -85,8 +94,7 @@ export default function ActiveChatPage() {
 
   return (
     <div className="activechat-wrapper">
-      
-      {/* ✅ LEFT USER LIST */}
+      {/* LEFT USER LIST */}
       <div className="user-list">
         <div className="header">
           <input
@@ -111,7 +119,6 @@ export default function ActiveChatPage() {
                 }`}
                 onClick={() => setActiveChatUser(u)}
               >
-                {/* Avatar */}
                 <div
                   className="avatar-circle"
                   style={{ background: generateAvatarColor(u.name || u.email) }}
@@ -119,13 +126,11 @@ export default function ActiveChatPage() {
                   {(u.name || u.email)[0].toUpperCase()}
                 </div>
 
-                {/* User Info */}
                 <div className="meta">
                   <div className="name">{u.name || "User"}</div>
                   <div className="preview">{u.email}</div>
                 </div>
 
-                {/* Call Buttons */}
                 <div className="call-buttons">
                   <button
                     onClick={(e) => {
@@ -150,13 +155,12 @@ export default function ActiveChatPage() {
         </div>
       </div>
 
-      {/* ✅ RIGHT CHAT WINDOW */}
+      {/* RIGHT CHAT */}
       <div className="chat-window">
         {!activeChatUser ? (
           <div className="empty-chat">Select a user to start chat</div>
         ) : (
           <>
-            {/* ✅ CHAT HEADER */}
             <div className="chat-header">
               <div
                 className="avatar-circle header-avatar"
@@ -175,7 +179,6 @@ export default function ActiveChatPage() {
               </div>
             </div>
 
-            {/* ✅ CHAT BODY */}
             <div className="chat-body">
               {messages.map((m, i) => (
                 <div
@@ -187,20 +190,15 @@ export default function ActiveChatPage() {
                   {m.text && <p>{m.text}</p>}
 
                   {m.fileURL && (
-                    <a
-                      href={m.fileURL}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                    <a href={m.fileURL} target="_blank" rel="noreferrer">
                       📎 {m.fileName}
                     </a>
                   )}
                 </div>
               ))}
-              <div ref={endRef}></div>
+              <div ref={endRef} />
             </div>
 
-            {/* ✅ CHAT INPUT BAR */}
             <div className="chat-input">
               <label className="file-btn">
                 📎

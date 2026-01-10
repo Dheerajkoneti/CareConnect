@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
-import io from 'socket.io-client';
+import socket from "../socket";
 import { 
     FaPaperPlane, FaSmile, FaMicrophone, FaPaperclip, FaVideo, FaEllipsisV, FaSearch, 
     FaChevronLeft, FaCheck, FaTimes, FaStop, FaPlay, FaPause, FaTrashAlt, FaLock 
 } from 'react-icons/fa'; 
 
 // Assuming the Socket.io server is running on port 5000
-const socket = io('http://localhost:5000'); 
 
 // --- EMOJI DATA AND COMPONENT (UNCHANGED) ---
 const EMOJIS = ['😀', '😂', '😍', '👍', '🙏', '🔥', '🎉', '💡', '💯', '❤️', '👀', '🥳', '🙌', '🌟', '😇', '🍕', '☕', '💻', '📚', '🎶', '🌍', '🏠', '🔑', '📞', '💡'];

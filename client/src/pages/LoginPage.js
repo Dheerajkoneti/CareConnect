@@ -1,6 +1,6 @@
 // client/src/pages/LoginPage.js (FINAL UPDATED VERSION)
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from "../utils/axiosInstance";
 import { useNavigate } from 'react-router-dom';
 import { FaHeart, FaGoogle } from 'react-icons/fa'; // Icons
 
@@ -16,8 +16,10 @@ function LoginPage() {
     e.preventDefault();
 
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', { email, password });
-
+      const response = await api.post(
+      "/api/auth/login",
+      { email, password }
+      );
       const user = response.data.user;
 
       // ✅ Store all user info for profile and other pages

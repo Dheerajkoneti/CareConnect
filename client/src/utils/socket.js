@@ -1,12 +1,8 @@
 import { io } from "socket.io-client";
 
-const API_URL = process.env.REACT_APP_API_URL;
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL;
 
-if (!API_URL) {
-  console.error("❌ REACT_APP_API_URL missing for socket");
-}
-
-const socket = io(API_URL, {
+const socket = io(SOCKET_URL, {
   transports: ["websocket"],
   withCredentials: true,
 });

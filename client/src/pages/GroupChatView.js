@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'; // useNavigate is essential here
 import { useTheme } from '../context/ThemeContext';
-import io from 'socket.io-client';
+import socket from "../utils/socket";
 import { FaPaperPlane, FaChevronLeft, FaUsers, FaSmile, FaPaperclip, FaTimes } from 'react-icons/fa'; 
 
 // Assuming the Socket.io server is running on port 5000
-const socket = io('http://localhost:5000'); 
-
 // --- LOCAL PERSISTENCE KEY ---
 const MESSAGES_KEY = 'groupChatMessages'; 
 const AI_SUGGESTION_KEY = 'wellnessAISent'; 

@@ -3,7 +3,6 @@ import io from "socket.io-client";
 import axios from "axios";
 import "../styles/voicecall.css"; // ✅ CSS import
 
-const socket = io("http://localhost:5000");
 
 const VoiceCall = () => {
   const [callPhone, setCallPhone] = useState("");
@@ -11,20 +10,29 @@ const VoiceCall = () => {
   const pcRef = useRef(null);
   const streamRef = useRef(null);
   const remoteSocketIdRef = useRef(null);
+  const socketRef = useRef(null);
 
   useEffect(() => {
-    socket.on("voice:offer", handleReceiveOffer);
-    socket.on("voice:answer", handleReceiveAnswer);
-    socket.on("voice:ice", handleNewICE);
-    socket.on("voice:end", endCall);
+  if (!socketRef.current) {
+    socketRef.current = io(process.env.REACT_APP_API_URL, {
+      transports: ["websocket"],
+    });
+  }
 
-    return () => {
-      socket.off("voice:offer");
-      socket.off("voice:answer");
-      socket.off("voice:ice");
-      socket.off("voice:end");
-    };
-  }, []);
+  const socket = socketRef.current;
+
+  socket.on("voice:offer", handleReceiveOffer);
+  socket.on("voice:answer", handleReceiveAnswer);
+  socket.on("voice:ice", handleNewICE);
+  socket.on("voice:end", endCall);
+
+  return () => {
+    socket.off("voice:offer");
+    socket.off("voice:answer");
+    socket.off("voice:ice");
+    socket.off("voice:end");
+  };
+}, []);
 
   const createPeerConnection = () => {
     const pc = new RTCPeerConnection({

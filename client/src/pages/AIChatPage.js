@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../utils/axiosInstance";
 import EmojiPicker from "emoji-picker-react";
 import { BsPaperclip, BsMicFill, BsEmojiSmile } from "react-icons/bs";
 
@@ -92,17 +92,15 @@ function AIChatPage() {
     role: m.role,
     content: m.content
   }));
-
-const res = await axios.post(
-  "http://localhost:5000/api/ai/chat",
+const res = await api.post(
+  "/api/ai/chat",
   {
     message: text,
-    history
+    history,
   },
   {
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
     },
   }
 );
@@ -152,10 +150,9 @@ const res = await axios.post(
     useEffect(() => {
         const loadHistory = async () => {
             const token = localStorage.getItem("token");
-            const res = await axios.get(
-                "http://localhost:5000/api/ai/history",
-            { headers: { Authorization: `Bearer ${token}` } }
-            );
+            const res = await api.get("/api/ai/history", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
             setMessages(
                 res.data.map(m => ({
         

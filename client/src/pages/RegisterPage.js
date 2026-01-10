@@ -1,6 +1,6 @@
 // client/src/pages/RegisterPage.js (FINAL & FIXED)
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from "../utils/axiosInstance";
 import { useNavigate } from 'react-router-dom';
 import { FaGoogle, FaHeart } from 'react-icons/fa';
 

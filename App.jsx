@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { io } from 'socket.io-client';
-
+import socket from "./socket";
 // NOTE: External library imports like 'simple-peer' and 'react-icons' have been removed 
 // and replaced with native browser features (media stream) and inline SVGs to ensure compilation.
 // We keep the Peer reference for illustrative purposes but replace its functionality.
@@ -8,8 +7,6 @@ const Peer = window.Peer || function() { console.log("Peer functionality is mock
 
 // --- SOCKET.IO INITIALIZATION ---
 // NOTE: Ensure this URL matches your backend server.
-const socket = io('http://localhost:5000', { transports: ['websocket', 'polling'] }); 
-
 // Mock Current User and Partner List for Demo
 const MOCK_USER = {
     _id: "user_A_123",

@@ -43,7 +43,19 @@ const server = http.createServer(app);
 const allowedOrigins = [
   "http://localhost:3000",
   "https://care-connect-gilt.vercel.app",
+  "https://care-connect-gilt.vercel.app/",
 ];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 
 // ------------------------------------------------------
 // ✅ CORS (EXPRESS)
@@ -159,35 +171,29 @@ app.get("/api/users/all", async (_req, res) => {
     res.status(500).json({ error: true, message: err.message });
   }
 });
-
-// ------------------------------------------------------
-// ✅ SOCKET.IO (SINGLE CONNECTION HANDLER ❗)
-// ------------------------------------------------------
+// ===============================
+// SOCKET.IO – FULL REALTIME SYSTEM
+// ===============================
 const io = new Server(server, {
   cors: {
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("Socket CORS blocked"));
-    },
+    origin: [
+      "http://localhost:3000",
+      "https://care-connect-gilt.vercel.app",
+    ],
     credentials: true,
-    methods: ["GET", "POST"],
   },
-  transports: ["websocket", "polling"],
+  transports: ["websocket"],
 });
-
 const postEvents = require("./socket/postEvents");
 postEvents(io);
-
 const onlineUsers = new Map();
-
-const broadcastPresence = () => {
+function broadcastPresence() {
   io.emit("presence:list", Array.from(onlineUsers.values()));
-};
-
+}
 io.on("connection", (socket) => {
   console.log("🔗 Socket connected:", socket.id);
 
+  // USER SETUP
   socket.on("setup", (user) => {
     onlineUsers.set(socket.id, {
       socketId: socket.id,
@@ -199,49 +205,55 @@ io.on("connection", (socket) => {
     broadcastPresence();
   });
 
+  // STATUS
   socket.on("status_change", ({ status, customStatus }) => {
     const u = onlineUsers.get(socket.id);
     if (!u) return;
     u.status = status;
     u.customStatus = customStatus || "";
+    onlineUsers.set(socket.id, u);
     broadcastPresence();
   });
 
-  socket.on("send_message", (msg) => io.emit("receive_message", msg));
+  // DIRECT CHAT
+  socket.on("send_message", (msg) => {
+    io.emit("receive_message", msg);
+  });
 
-  // -------- WebRTC + Voice --------
-  socket.on("call:request", (d) => io.to(d.to).emit("call:incoming", d));
-  socket.on("call:accept", (d) => io.to(d.to).emit("call:accepted", d));
-  socket.on("call:reject", (d) => io.to(d.to).emit("call:rejected", d));
-  socket.on("webrtc_offer", (d) => socket.to(d.to).emit("webrtc_offer", d));
-  socket.on("webrtc_answer", (d) => socket.to(d.to).emit("webrtc_answer", d));
-  socket.on("webrtc_ice_candidate", (d) =>
-    socket.to(d.to).emit("webrtc_ice_candidate", d)
+  // WEBRTC CALL
+  socket.on("call:request", (data) => io.to(data.to).emit("call:incoming", data));
+  socket.on("call:accept", (data) => io.to(data.to).emit("call:accepted", data));
+  socket.on("call:reject", (data) => io.to(data.to).emit("call:rejected", data));
+
+  socket.on("webrtc_offer", (data) =>
+    socket.to(data.to).emit("webrtc_offer", data)
   );
-
-  socket.on("voice:offer", (d) => io.to(d.to).emit("voice:offer", d));
-  socket.on("voice:answer", (d) => io.to(d.to).emit("voice:answer", d));
-  socket.on("voice:ice", (d) => io.to(d.to).emit("voice:ice", d));
-  socket.on("voice:end", (d) => io.to(d.to).emit("voice:end", d));
-
-  // -------- Community Chat --------
-  socket.on("chat:new", (m) => io.emit("chat:new", m));
-  socket.on("chat:edit", (m) => io.emit("chat:edit", m));
+  socket.on("webrtc_answer", (data) =>
+    socket.to(data.to).emit("webrtc_answer", data)
+  );
+  socket.on("webrtc_ice_candidate", (data) =>
+    socket.to(data.to).emit("webrtc_ice_candidate", data)
+  );
+  // VOICE CALL
+  socket.on("voice:offer", (d) => io.to(d.to).emit("voice:offer", { from: socket.id, offer: d.offer }));
+  socket.on("voice:answer", (d) => io.to(d.to).emit("voice:answer", { from: socket.id, answer: d.answer }));
+  socket.on("voice:ice", (d) => io.to(d.to).emit("voice:ice", { from: socket.id, candidate: d.candidate }));
+  socket.on("voice:end", (d) => io.to(d.to).emit("voice:end"));
+  // COMMUNITY CHAT
+  socket.on("chat:new", (msg) => io.emit("chat:new", msg));
   socket.on("chat:delete", (id) => io.emit("chat:delete", id));
-  socket.on("chat:reaction", (m) => io.emit("chat:reaction", m));
+  socket.on("chat:edit", (msg) => io.emit("chat:edit", msg));
+  socket.on("chat:reaction", (msg) => io.emit("chat:reaction", msg));
   socket.on("chat:typing", (d) => socket.broadcast.emit("chat:typing", d));
   socket.on("chat:typing_stop", (d) =>
     socket.broadcast.emit("chat:typing_stop", d)
   );
-  socket.on("chat:seen", (id) => io.emit("chat:seen", id));
-
   socket.on("disconnect", () => {
     onlineUsers.delete(socket.id);
     broadcastPresence();
     console.log("❌ Socket disconnected:", socket.id);
   });
 });
-
 // ------------------------------------------------------
 // ✅ ROOT
 // ------------------------------------------------------

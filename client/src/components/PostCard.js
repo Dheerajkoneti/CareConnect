@@ -40,9 +40,13 @@ const PostCard = ({ post, currentUserId, token, onDelete, onUpdate, onLike, isRe
     const config = { headers: { Authorization: `Bearer ${token}` } };
     
     // 💡 MEDIA FIX: Construct the full URL for the media asset
-    const mediaSource = post.mediaUrl && post.mediaUrl.startsWith('/uploads/') 
-        ? `http://localhost:5000${post.mediaUrl}` 
-        : post.mediaUrl; 
+    const BACKEND_URL =
+  process.env.REACT_APP_API_URL || "https://careconnect-dini.onrender.com";
+
+const mediaSource =
+  post.mediaUrl && post.mediaUrl.startsWith("/uploads/")
+    ? `${BACKEND_URL}${post.mediaUrl}`
+    : post.mediaUrl;
 
     // Determine media type for rendering
     let mediaType = null;

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../utils/axiosInstance";
 import io from "socket.io-client";
-
-const socket = io("http://localhost:5000");
-const API = "http://localhost:5000/api/community";
+import { useRef } from "react";
+const API = "/api/community";
 
 const ProfilePage = () => {
+  const socketRef = useRef(null);
   const [user, setUser] = useState(null);
   const [myPosts, setMyPosts] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -23,28 +23,33 @@ const ProfilePage = () => {
   // ✅ Load Profile + Posts + Requests
   // ===================================================
   useEffect(() => {
+    if (!socketRef.current) {
+        socketRef.current = io(process.env.REACT_APP_API_URL, {
+        transports: ["websocket"],
+      });
+    }
+    const socket = socketRef.current;
     const loadData = async () => {
       const headers = { Authorization: `Bearer ${token}` };
 
       // ✅ Load User
-      const userRes = await axios.get(
-        `http://localhost:5000/api/users/${userId}`,
+      const userRes = await api.get(
+        `/api/users/${userId}`,
         { headers }
       );
       setUser(userRes.data);
-
       setFormData({
         fullName: userRes.data.fullName,
         bio: userRes.data.bio || "",
       });
 
       // ✅ Load Posts
-      const postsRes = await axios.get(`${API}/posts`);
+      const postsRes = await api.get(`${API}/posts`);
       setMyPosts(postsRes.data.filter((p) => p.authorId === userId));
 
       // ✅ Load Requests
-      const reqRes = await axios.get(
-        `http://localhost:5000/api/users/${userId}/requests`,
+      const reqRes = await api.get(
+        `/api/users/${userId}/requests`,
         { headers }
       );
       setRequests(reqRes.data);
@@ -70,9 +75,12 @@ const ProfilePage = () => {
         );
     });
 
-    return () => socket.disconnect();
+    return () => {
+      socketRef.current?.off("post:new");
+      socketRef.current?.off("post:delete");
+      socketRef.current?.off("post:edit");
+    };
   }, [userId, token]);
-
   // ===================================================
   // ✅ Edit Profile Functions
   // ===================================================
@@ -91,18 +99,15 @@ const ProfilePage = () => {
     form.append("bio", formData.bio);
 
     if (formData.profilePic) form.append("profilePic", formData.profilePic);
-
-    const res = await axios.put(
-      "http://localhost:5000/api/users/update-profile",
+    const res = await api.put(
+      "/api/users/update-profile",
       form,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
       }
     );
-
     setUser(res.data.user);
     setProfilePreview(null);
     setIsEditing(false);
@@ -118,12 +123,10 @@ const ProfilePage = () => {
   };
 
   const saveEdit = async () => {
-    const res = await axios.put(
+    const res = await api.put(
       `${API}/post/${activePost._id}`,
-      { userId, content: editText },
-      { headers: { Authorization: `Bearer ${token}` } }
+      { userId, content: editText }
     );
-
     socket.emit("post:edit", res.data.post);
     setEditMode(false);
   };
@@ -134,19 +137,14 @@ const ProfilePage = () => {
   const deletePost = async (postId) => {
     if (!window.confirm("Delete this post?")) return;
 
-    await axios.delete(`${API}/post/${postId}`, {
+    await api.delete(`${API}/post/${postId}`, {
       data: { userId },
-      headers: { Authorization: `Bearer ${token}` },
     });
-
     socket.emit("post:delete", postId);
   };
-
   if (!user) return <p>Loading...</p>;
-
   return (
     <div style={styles.page}>
-
       {/* ✅ PROFILE HEADER CARD */}
       <div style={styles.profileCard}>
         <div style={styles.avatarWrapper}>
@@ -155,7 +153,7 @@ const ProfilePage = () => {
               profilePreview
                 ? profilePreview
                 : user.profilePic
-                ? `http://localhost:5000${user.profilePic}`
+                ? `${process.env.REACT_APP_API_URL}${user.profilePic}`
                 : "/default-profile.png"
             }
             style={styles.avatar}
@@ -242,14 +240,14 @@ const ProfilePage = () => {
               {post.mediaUrl && (
                 post.mediaType === "image" ? (
                   <img
-                    src={`http://localhost:5000${post.mediaUrl}`}
+                    src={`${process.env.REACT_APP_API_URL}${post.mediaUrl}`}
                     alt=""
                     style={styles.postMedia}
                   />
                 ) : (
                   <video
                     controls
-                    src={`http://localhost:5000${post.mediaUrl}`}
+                    src={`${process.env.REACT_APP_API_URL}${post.mediaUrl}`}
                     style={styles.postMedia}
                   />
                 )

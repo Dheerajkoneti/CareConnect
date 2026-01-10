@@ -23,12 +23,12 @@ ChartJS.register(
   PointElement,
   LineElement
 );
-
+const API_BASE_URL = process.env.REACT_APP_API_URL;
 // ✅ API Endpoints
-const API_TASKS = "http://localhost:5000/api/tasks";
-const API_CALLS = "http://localhost:5000/api/calls";   // ✅ FIXED
-const API_POSTS = "http://localhost:5000/api/community";
-const API_MOOD = "http://localhost:5000/api/mood";
+const API_TASKS = `${API_BASE_URL}/api/tasks`;
+const API_CALLS = `${API_BASE_URL}/api/calls`;
+const API_POSTS = `${API_BASE_URL}/api/community`;
+const API_MOOD  = `${API_BASE_URL}/api/mood`;
 
 function ProgressPage() {
   const userId = localStorage.getItem("userId");
