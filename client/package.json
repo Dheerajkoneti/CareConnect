@@ -5,7 +5,6 @@
   "homepage": ".",
   "description": "Frontend application for CareConnect using React",
   "main": "index.js",
-  "proxy": "http://localhost:5000",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",

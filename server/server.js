@@ -7,12 +7,13 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const http = require("http");
 const { Server } = require("socket.io");
-const session = require("express-session");   // ✅ Added
-const passport = require("passport");         // ✅ Required for OAuth
+const session = require("express-session");
+const passport = require("passport");
 require("dotenv").config();
-require("./config/passport"); // ✅ Load Google OAuth Strategy
+require("./config/passport");
+
 // ------------------------------------------------------
-// ✅ FIREBASE ADMIN SDK SETUP (LOCAL + PRODUCTION SAFE)
+// ✅ FIREBASE ADMIN SDK SETUP
 // ------------------------------------------------------
 const admin = require("firebase-admin");
 
@@ -21,10 +22,7 @@ if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
 }
 
 const serviceAccount = JSON.parse(
-  Buffer.from(
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
-    "base64"
-  ).toString("utf8")
+  Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY, "base64").toString("utf8")
 );
 
 admin.initializeApp({
@@ -32,56 +30,76 @@ admin.initializeApp({
 });
 
 console.log("✅ Firebase Admin Initialized (prod)");
+
 // ------------------------------------------------------
-// ✅ Express App + HTTP Server
+// ✅ EXPRESS + HTTP SERVER
 // ------------------------------------------------------
 const app = express();
 const server = http.createServer(app);
 
 // ------------------------------------------------------
-// ✅ Middleware
+// ✅ GLOBAL ALLOWED ORIGINS (ONLY ONCE ❗)
+// ------------------------------------------------------
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://care-connect-gilt.vercel.app",
+];
+
+// ------------------------------------------------------
+// ✅ CORS (EXPRESS)
 // ------------------------------------------------------
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://care-connect-ecru.vercel.app",
-      "https://care-connect-wps.vercel.app",
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("CORS not allowed"));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   })
 );
+
+app.options("*", cors());
 app.use(express.json());
 
-// ✅ Session + Passport Middleware (REQUIRED for Google OAuth)
+// ------------------------------------------------------
+// ✅ SESSION + PASSPORT (FIXED FOR RENDER)
+// ------------------------------------------------------
+app.set("trust proxy", 1);
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "careconnectsecret123",
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     cookie: {
-      secure: true,        // REQUIRED on HTTPS (Render)
-      sameSite: "none",    // REQUIRED for cross-site cookies
+      secure: true,
+      sameSite: "none",
+      maxAge: 1000 * 60 * 60 * 24,
     },
   })
 );
+
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ✅ Serve uploaded files (Direct Chat + Community)
+// ------------------------------------------------------
+// ✅ STATIC FILES
+// ------------------------------------------------------
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ------------------------------------------------------
-// ✅ MongoDB Connect
+// ✅ MONGODB
 // ------------------------------------------------------
 mongoose
   .connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/careconnect")
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB error:", err));
 
-
 // ------------------------------------------------------
-// ✅ ALL EXISTING ROUTES
+// ✅ ROUTES
 // ------------------------------------------------------
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
@@ -100,7 +118,6 @@ const moodRoutes = require("./routes/moodRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const User = require("./models/User");
 
-// ✅ Register all API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
@@ -116,9 +133,10 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/calls", callRoutes);
 app.use("/api/mood", moodRoutes);
 app.use("/api/notifications", notificationRoutes);
-// ======================================================
-// ✅ PUBLIC USER LIST FOR DIRECT CHAT
-// ======================================================
+
+// ------------------------------------------------------
+// ✅ PUBLIC USER LIST
+// ------------------------------------------------------
 app.get("/api/users/all", async (_req, res) => {
   try {
     const users = await User.find(
@@ -142,34 +160,34 @@ app.get("/api/users/all", async (_req, res) => {
   }
 });
 
-// ======================================================
-// ✅ SOCKET.IO — FULL REALTIME SYSTEM
-// ======================================================
+// ------------------------------------------------------
+// ✅ SOCKET.IO (SINGLE CONNECTION HANDLER ❗)
+// ------------------------------------------------------
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:3000",
-      "https://care-connect-ecru.vercel.app",
-      "https://care-connect-wps.vercel.app",
-    ],
-    methods: ["GET", "POST"],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("Socket CORS blocked"));
+    },
     credentials: true,
+    methods: ["GET", "POST"],
   },
+  transports: ["websocket", "polling"],
 });
-// ✅ Real-Time Post Events (likes, comments, edits, deletes)
+
 const postEvents = require("./socket/postEvents");
 postEvents(io);
 
 const onlineUsers = new Map();
 
-function broadcastPresence() {
+const broadcastPresence = () => {
   io.emit("presence:list", Array.from(onlineUsers.values()));
-}
+};
 
 io.on("connection", (socket) => {
   console.log("🔗 Socket connected:", socket.id);
 
-  // ✅ USER SETUP
   socket.on("setup", (user) => {
     onlineUsers.set(socket.id, {
       socketId: socket.id,
@@ -178,98 +196,60 @@ io.on("connection", (socket) => {
       role: user?.role || "user",
       status: "active",
     });
-
     broadcastPresence();
   });
 
-  // ✅ STATUS CHANGE
   socket.on("status_change", ({ status, customStatus }) => {
     const u = onlineUsers.get(socket.id);
     if (!u) return;
-
     u.status = status;
     u.customStatus = customStatus || "";
-    onlineUsers.set(socket.id, u);
     broadcastPresence();
   });
 
-  // ✅ DIRECT MESSAGES
-  socket.on("send_message", (msg) => {
-    io.emit("receive_message", msg);
-  });
+  socket.on("send_message", (msg) => io.emit("receive_message", msg));
 
-  // ✅ WEBRTC CALLING
-  socket.on("call:request", (data) => io.to(data.to).emit("call:incoming", data));
-  socket.on("call:accept", (data) => io.to(data.to).emit("call:accepted", data));
-  socket.on("call:reject", (data) => io.to(data.to).emit("call:rejected", data));
-
-  socket.on("webrtc_offer", (data) => socket.to(data.to).emit("webrtc_offer", data));
-  socket.on("webrtc_answer", (data) => socket.to(data.to).emit("webrtc_answer", data));
-  socket.on("webrtc_ice_candidate", (data) =>
-    socket.to(data.to).emit("webrtc_ice_candidate", data)
+  // -------- WebRTC + Voice --------
+  socket.on("call:request", (d) => io.to(d.to).emit("call:incoming", d));
+  socket.on("call:accept", (d) => io.to(d.to).emit("call:accepted", d));
+  socket.on("call:reject", (d) => io.to(d.to).emit("call:rejected", d));
+  socket.on("webrtc_offer", (d) => socket.to(d.to).emit("webrtc_offer", d));
+  socket.on("webrtc_answer", (d) => socket.to(d.to).emit("webrtc_answer", d));
+  socket.on("webrtc_ice_candidate", (d) =>
+    socket.to(d.to).emit("webrtc_ice_candidate", d)
   );
 
-  // ✅ COMMUNITY CHAT
-  socket.on("chat:new", (msg) => io.emit("chat:new", msg));
+  socket.on("voice:offer", (d) => io.to(d.to).emit("voice:offer", d));
+  socket.on("voice:answer", (d) => io.to(d.to).emit("voice:answer", d));
+  socket.on("voice:ice", (d) => io.to(d.to).emit("voice:ice", d));
+  socket.on("voice:end", (d) => io.to(d.to).emit("voice:end", d));
+
+  // -------- Community Chat --------
+  socket.on("chat:new", (m) => io.emit("chat:new", m));
+  socket.on("chat:edit", (m) => io.emit("chat:edit", m));
   socket.on("chat:delete", (id) => io.emit("chat:delete", id));
-  socket.on("chat:edit", (msg) => io.emit("chat:edit", msg));
-  socket.on("chat:reaction", (msg) => io.emit("chat:reaction", msg));
-  socket.on("chat:typing", (data) => socket.broadcast.emit("chat:typing", data));
-  socket.on("chat:typing_stop", (data) =>
-    socket.broadcast.emit("chat:typing_stop", data)
+  socket.on("chat:reaction", (m) => io.emit("chat:reaction", m));
+  socket.on("chat:typing", (d) => socket.broadcast.emit("chat:typing", d));
+  socket.on("chat:typing_stop", (d) =>
+    socket.broadcast.emit("chat:typing_stop", d)
   );
+  socket.on("chat:seen", (id) => io.emit("chat:seen", id));
 
-  socket.on("chat:seen", (userId) => io.emit("chat:seen", userId));
-
-  // ✅ DISCONNECT
   socket.on("disconnect", () => {
     onlineUsers.delete(socket.id);
     broadcastPresence();
-  });
-});
-io.on("connection", (socket) => {
-  console.log("🔗 Socket connected:", socket.id);
-
-  // ================= VOICE CALL SIGNALING =================
-
-  socket.on("voice:offer", ({ to, offer }) => {
-    io.to(to).emit("voice:offer", {
-      from: socket.id,
-      offer,
-    });
-  });
-
-  socket.on("voice:answer", ({ to, answer }) => {
-    io.to(to).emit("voice:answer", {
-      from: socket.id,
-      answer,
-    });
-  });
-
-  socket.on("voice:ice", ({ to, candidate }) => {
-    io.to(to).emit("voice:ice", {
-      from: socket.id,
-      candidate,
-    });
-  });
-
-  socket.on("voice:end", ({ to }) => {
-    io.to(to).emit("voice:end");
-  });
-
-  // ================= EXISTING SOCKET EVENTS =================
-  socket.on("disconnect", () => {
     console.log("❌ Socket disconnected:", socket.id);
   });
 });
-// ======================================================
-// ✅ Root
-// ======================================================
+
+// ------------------------------------------------------
+// ✅ ROOT
+// ------------------------------------------------------
 app.get("/", (_, res) => res.send("🌐 CareConnect Backend Running"));
 
-// ======================================================
-// ✅ Start Server
-// ======================================================
+// ------------------------------------------------------
+// ✅ START SERVER
+// ------------------------------------------------------
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () =>
   console.log(`🚀 CareConnect Backend Running on Port ${PORT}`)
