@@ -104,7 +104,6 @@ const taskRoutes = require("./routes/taskRoutes");
 const callRoutes = require("./routes/callRoutes");
 const moodRoutes = require("./routes/moodRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-const aiRoutes = require("./routes/aiRoutes");
 const User = require("./models/User");
 
 // ✅ Register all API routes
