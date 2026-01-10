@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import api from "../utils/axiosInstance";
-import io from "socket.io-client";
+import socket from "../utils/socket";
 import { useRef } from "react";
 const API = "/api/community";
 
@@ -23,12 +23,6 @@ const ProfilePage = () => {
   // ✅ Load Profile + Posts + Requests
   // ===================================================
   useEffect(() => {
-    if (!socketRef.current) {
-        socketRef.current = io(process.env.REACT_APP_API_URL, {
-        transports: ["websocket"],
-      });
-    }
-    const socket = socketRef.current;
     const loadData = async () => {
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -127,7 +121,7 @@ const ProfilePage = () => {
       `${API}/post/${activePost._id}`,
       { userId, content: editText }
     );
-    socket.emit("post:edit", res.data.post);
+    socketRef.current?.emit("post:edit", res.data.post);
     setEditMode(false);
   };
 
@@ -140,7 +134,7 @@ const ProfilePage = () => {
     await api.delete(`${API}/post/${postId}`, {
       data: { userId },
     });
-    socket.emit("post:delete", postId);
+    socketRef.current?.emit("post:delete", postId);
   };
   if (!user) return <p>Loading...</p>;
   return (

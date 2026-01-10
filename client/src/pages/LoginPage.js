@@ -2,8 +2,9 @@
 import React, { useState } from 'react';
 import api from "../utils/axiosInstance";
 import { useNavigate } from 'react-router-dom';
-import { FaHeart, FaGoogle } from 'react-icons/fa'; // Icons
-
+import { FaHeart } from 'react-icons/fa';
+import axios from "axios"; // Icons
+import axios from "../utils/axiosInstance";
 function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,6 +22,7 @@ function LoginPage() {
       { email, password }
       );
       const user = response.data.user;
+      if (!user) throw new Error("User data missing from response");
 
       // ✅ Store all user info for profile and other pages
       localStorage.setItem('token', response.data.token);
@@ -48,10 +50,10 @@ function LoginPage() {
     alert('Sending reset link... Please check your inbox.');
 
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/request-password-reset', {
-        email: resetEmail,
-      });
-
+      const response = await api.post(
+        "/api/auth/request-password-reset",
+        { email: resetEmail }
+      );
       alert(response.data.message || 'Password reset email sent successfully.');
       setIsResetMode(false);
     } catch (error) {
@@ -59,12 +61,11 @@ function LoginPage() {
       alert('Unable to send reset link. Please ensure backend/email service is running.');
     }
   };
-
   // ✅ Google login redirect
   const handleGoogleSignIn = () => {
-    window.location.href = 'http://localhost:5000/api/auth/google';
+    window.location.href =
+   `${process.env.REACT_APP_API_URL}/api/auth/google`;
   };
-
   return (
     <div style={styles.outerContainer}>
       {/* LEFT PANEL — LOGIN FORM */}

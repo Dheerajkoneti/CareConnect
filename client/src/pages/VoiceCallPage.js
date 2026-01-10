@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import io from "socket.io-client";
+import socket from "../utils/socket";
+import socket from "../socket";
 import axios from "axios";
 import "../styles/voicecall.css"; // ✅ CSS import
 
@@ -13,14 +14,6 @@ const VoiceCall = () => {
   const socketRef = useRef(null);
 
   useEffect(() => {
-  if (!socketRef.current) {
-    socketRef.current = io(process.env.REACT_APP_API_URL, {
-      transports: ["websocket"],
-    });
-  }
-
-  const socket = socketRef.current;
-
   socket.on("voice:offer", handleReceiveOffer);
   socket.on("voice:answer", handleReceiveAnswer);
   socket.on("voice:ice", handleNewICE);
@@ -41,19 +34,17 @@ const VoiceCall = () => {
 
     pc.onicecandidate = (e) => {
       if (e.candidate && remoteSocketIdRef.current) {
-        socket.emit("voice:ice", {
+        socketRef.current?.emit("voice:ice", {
           to: remoteSocketIdRef.current,
           candidate: e.candidate,
         });
       }
     };
-
     pc.ontrack = (e) => {
       const audio = document.createElement("audio");
       audio.srcObject = e.streams[0];
       audio.autoplay = true;
     };
-
     return pc;
   };
 
@@ -74,7 +65,7 @@ const VoiceCall = () => {
       const offer = await pcRef.current.createOffer();
       await pcRef.current.setLocalDescription(offer);
 
-      socket.emit("voice:offer", {
+      socketRef.current?.emit("voice:offer", {
         offer,
         phone: callPhone,
       });
@@ -103,7 +94,7 @@ const VoiceCall = () => {
     const answer = await pcRef.current.createAnswer();
     await pcRef.current.setLocalDescription(answer);
 
-    socket.emit("voice:answer", { to: from, answer });
+    socketRef.current?.emit("voice:answer", { to: from, answer });
     setStatus("connected");
   };
 
@@ -121,9 +112,11 @@ const VoiceCall = () => {
   const endCall = () => {
     pcRef.current?.close();
     streamRef.current?.getTracks().forEach((t) => t.stop());
+    socketRef.current?.emit("voice:end", {
+      to: remoteSocketIdRef.current,
+    });
     setStatus("idle");
   };
-
   return (
     <div className="voicecall-page">
       <div className="call-card">

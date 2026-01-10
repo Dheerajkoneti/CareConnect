@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const aiConversationSchema = new mongoose.Schema(
+const AIConversationSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -20,4 +20,9 @@ const aiConversationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("AIConversation", aiConversationSchema);
+// 🔥 FORCE collection name to avoid Linux mismatch
+module.exports = mongoose.model(
+  "AIConversation",
+  AIConversationSchema,
+  "ai_conversations"
+);

@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import socket from "../utils/socket";
-import axios from "axios";
+import api from "../utils/axiosInstance";
 import {
   FaPhoneSlash,
   FaMicrophone,
@@ -119,9 +119,10 @@ export default function VideoCallPage() {
     // ✅ 3: Fetch directory
     (async () => {
       try {
-        const res = await axios.get("/api/users/all");
+        const res = await api.get("/api/users/all");
         setDirectory(Array.isArray(res.data) ? res.data : []);
-      } catch {
+      } catch (err){
+        console.error("Directory fetch failed", err);
         setDirectory([]);
       }
     })();

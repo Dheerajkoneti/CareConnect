@@ -1,9 +1,8 @@
 // client/src/pages/ActiveChatPage.js
-
 import React, { useEffect, useRef, useState } from "react";
 import "../styles/ActiveChatPage.css";
 import api from "../utils/axiosInstance";
-import socket from "../socket";
+import socket from "../utils/socket";
 
 // ✅ Avatar Color Generator
 function generateAvatarColor(str = "U") {

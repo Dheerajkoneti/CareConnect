@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar'; 
-import axios from 'axios'; 
+import api from "../utils/axiosInstance";
 
 function DashboardHome() {
     const navigate = useNavigate();
@@ -20,21 +20,16 @@ function DashboardHome() {
         if (!token) {
             navigate('/login');
         }
-
         const fetchLatestPost = async () => {
             try {
-                const config = { headers: { Authorization: `Bearer ${token}` } };
-                const response = await axios.get('/api/posts/latest', config);
-                
-                setLatestPost(response.data); 
+                const response = await api.get("/api/community/posts");
+                setLatestPost(response.data[0] || null);
             } catch (error) {
                 console.error("Error fetching latest post:", error);
             }
-            setLoadingPosts(false); 
+            setLoadingPosts(false);
         };
-
         fetchLatestPost();
-        
     }, [navigate, token]);
 
     const handleMoodRecord = () => {

@@ -1,8 +1,10 @@
 // client/src/pages/RegisterPage.js (FINAL & FIXED)
 import React, { useState } from 'react';
 import api from "../utils/axiosInstance";
+import axios from "../utils/axiosInstance";
 import { useNavigate } from 'react-router-dom';
 import { FaGoogle, FaHeart } from 'react-icons/fa';
+import axios from "axios";
 
 const ACCENT_PURPLE = '#6A1B9A';
 const LIGHT_BACKGROUND = '#F0F4F7';
@@ -26,14 +28,17 @@ function RegisterPage() {
     }
 
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/register', {
-        fullName,
-        email,
-        password,
-        role,
-        age: age ? parseInt(age) : undefined,
-        location,
-      });
+      const response = await api.post(
+  "/api/auth/register",
+  {
+    fullName,
+    email,
+    password,
+    role,
+    age: age ? parseInt(age) : undefined,
+    location,
+  }
+);
 
       console.log('✅ Registration Success:', response.data);
 
@@ -57,7 +62,8 @@ function RegisterPage() {
   };
 
   const handleSocialRegister = () => {
-    window.location.href = 'http://localhost:5000/api/auth/google';
+    window.location.href =
+  `${process.env.REACT_APP_API_URL}/api/auth/google`;
   };
 
   return (

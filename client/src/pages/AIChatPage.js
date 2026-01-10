@@ -148,22 +148,30 @@ const res = await api.post(
     };
 
     useEffect(() => {
-        const loadHistory = async () => {
-            const token = localStorage.getItem("token");
-            const res = await api.get("/api/ai/history", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            setMessages(
-                res.data.map(m => ({
-        
-                    role: m.role,
-                    content: m.content,
-                    timestamp: new Date(m.createdAt),
-                }))
-            );
-        };
-        loadHistory();
-    }, []);
+  const loadHistory = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await api.get("/api/ai/history", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setMessages(
+        res.data.map((m) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.createdAt),
+        }))
+      );
+    } catch (err) {
+      console.error("Failed to load AI history:", err);
+    }
+  };
+
+  loadHistory();
+}, []);
     // ✅ Chat Bubble Component
     const ChatBubble = ({ msg }) => {
         const style =
