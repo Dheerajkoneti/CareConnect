@@ -2,10 +2,15 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    fullName: { type: String, required: true, default: "User" },   // ✅ your original
-    name: { type: String },                       // ✅ added for call system
+    fullName: { type: String, required: true, default: "User" },
+    name: { type: String }, // for call system
     email: { type: String, required: true, unique: true },
     password: { type: String },
+
+    phone: {
+      type: String,
+      default: "",
+    },
 
     role: {
       type: String,
@@ -16,7 +21,6 @@ const userSchema = new mongoose.Schema(
     bio: { type: String },
     profilePic: { type: String },
 
-    // ✅ Added for status / presence system
     status: {
       type: String,
       enum: ["active", "away", "dnd", "offline", "automatic", "custom"],
@@ -24,10 +28,10 @@ const userSchema = new mongoose.Schema(
     },
 
     customStatus: { type: String, default: "" },
-
     lastActive: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.models.User || mongoose.model("User", userSchema);
+module.exports =
+  mongoose.models.User || mongoose.model("User", userSchema);

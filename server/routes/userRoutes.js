@@ -38,16 +38,20 @@ const authMiddleware = (req, res, next) => {
 router.get("/all", async (req, res) => {
   try {
     const users = await User.find(
-      {},
-      {
-        fullName: 1,
-        email: 1,
-        role: 1,
-        status: 1,
-        customStatus: 1,
-        lastActive: 1,
-      }
-    ).lean();
+  {},
+  {
+    fullName: 1,
+    name: 1,
+    email: 1,
+    phone: 1,          // ✅ REQUIRED FOR CALLS
+    role: 1,
+    status: 1,
+    customStatus: 1,
+    lastActive: 1,
+    profilePic: 1,
+  }
+).lean();
+
 
     res.json(users || []);
   } catch (err) {

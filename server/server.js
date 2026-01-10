@@ -9,33 +9,35 @@ const http = require("http");
 const { Server } = require("socket.io");
 const session = require("express-session");   // ✅ Added
 const passport = require("passport");         // ✅ Required for OAuth
-
 require("dotenv").config();
 require("./config/passport"); // ✅ Load Google OAuth Strategy
-
 // ------------------------------------------------------
-// ✅ FIREBASE ADMIN SDK SETUP
-// ------------------------------------------------------
-// ------------------------------------------------------
-// ✅ FIREBASE ADMIN SDK SETUP (RENDER SAFE)
+// ✅ FIREBASE ADMIN SDK SETUP (LOCAL + PRODUCTION SAFE)
 // ------------------------------------------------------
 const admin = require("firebase-admin");
+const fs = require("fs");   // ✅ fs only, NO path here
 
-if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-  console.error("❌ FIREBASE_SERVICE_ACCOUNT env variable missing");
-} else {
+if (process.env.NODE_ENV === "production") {
   const serviceAccount = JSON.parse(
-    process.env.FIREBASE_SERVICE_ACCOUNT
+    Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, "base64").toString("utf8")
   );
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
   });
 
-  console.log("✅ Firebase Admin Initialized");
+  console.log("✅ Firebase Admin Initialized (prod)");
+} else {
+  const serviceAccount = JSON.parse(
+    fs.readFileSync("./serviceAccountKey.json", "utf8")
+  );
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+
+  console.log("✅ Firebase Admin Initialized (local)");
 }
-
-
 // ------------------------------------------------------
 // ✅ Express App + HTTP Server
 // ------------------------------------------------------
@@ -49,13 +51,12 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      process.env.CLIENT_URL,
+      "https://care-connect-ecru.vercel.app",
+      "https://care-connect-wps.vercel.app",
     ],
     credentials: true,
   })
 );
-
-
 app.use(express.json());
 
 // ✅ Session + Passport Middleware (REQUIRED for Google OAuth)
@@ -64,9 +65,12 @@ app.use(
     secret: process.env.SESSION_SECRET || "careconnectsecret123",
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      secure: true,        // REQUIRED on HTTPS (Render)
+      sameSite: "none",    // REQUIRED for cross-site cookies
+    },
   })
 );
-
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -100,7 +104,7 @@ const taskRoutes = require("./routes/taskRoutes");
 const callRoutes = require("./routes/callRoutes");
 const moodRoutes = require("./routes/moodRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-
+const aiRoutes = require("./routes/aiRoutes");
 const User = require("./models/User");
 
 // ✅ Register all API routes
@@ -119,8 +123,7 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/calls", callRoutes);
 app.use("/api/mood", moodRoutes);
 app.use("/api/notifications", notificationRoutes);
-
-
+app.use("/api/ai", aiRoutes);
 // ======================================================
 // ✅ PUBLIC USER LIST FOR DIRECT CHAT
 // ======================================================
@@ -154,14 +157,13 @@ const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:3000",
-      process.env.CLIENT_URL,
+      "https://care-connect-ecru.vercel.app",
+      "https://care-connect-wps.vercel.app",
     ],
     methods: ["GET", "POST"],
     credentials: true,
   },
 });
-
-
 // ✅ Real-Time Post Events (likes, comments, edits, deletes)
 const postEvents = require("./socket/postEvents");
 postEvents(io);
@@ -233,7 +235,41 @@ io.on("connection", (socket) => {
     broadcastPresence();
   });
 });
+io.on("connection", (socket) => {
+  console.log("🔗 Socket connected:", socket.id);
 
+  // ================= VOICE CALL SIGNALING =================
+
+  socket.on("voice:offer", ({ to, offer }) => {
+    io.to(to).emit("voice:offer", {
+      from: socket.id,
+      offer,
+    });
+  });
+
+  socket.on("voice:answer", ({ to, answer }) => {
+    io.to(to).emit("voice:answer", {
+      from: socket.id,
+      answer,
+    });
+  });
+
+  socket.on("voice:ice", ({ to, candidate }) => {
+    io.to(to).emit("voice:ice", {
+      from: socket.id,
+      candidate,
+    });
+  });
+
+  socket.on("voice:end", ({ to }) => {
+    io.to(to).emit("voice:end");
+  });
+
+  // ================= EXISTING SOCKET EVENTS =================
+  socket.on("disconnect", () => {
+    console.log("❌ Socket disconnected:", socket.id);
+  });
+});
 // ======================================================
 // ✅ Root
 // ======================================================

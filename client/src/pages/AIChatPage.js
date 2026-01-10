@@ -44,9 +44,27 @@ function AIChatPage() {
 
     // ✅ Placeholder for voice input
     const handleVoiceInput = () => {
-        alert("🎤 Voice input coming soon…");
-    };
+        const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
 
+        if (!SpeechRecognition) {
+            alert("❌ Voice recognition not supported in this browser");
+            return;
+        }
+        const recognition = new SpeechRecognition();
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.continuous = false;
+        recognition.start();
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            setInput((prev) => prev + " " + transcript);
+        };
+        recognition.onerror = (event) => {
+            console.error("Speech error:", event.error);
+            alert("❌ Voice recognition failed. Please allow microphone access.");
+        };
+    };
     // ✅ Send message to Gemini backend
     const handleSend = async (e) => {
         e.preventDefault();
@@ -67,20 +85,28 @@ function AIChatPage() {
 
         try {
             // ✅ FIXED: Backend expects { message: text }
-           const res = await axios.post(
-    "http://localhost:5000/api/ai/chat",
-    { message: text },
-    {
-        headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-        },
-    }
+           const history = messages
+  .filter(m => m.role === "user" || m.role === "ai")
+  .slice(-6) // last 6 messages only
+  .map(m => ({
+    role: m.role,
+    content: m.content
+  }));
+
+const res = await axios.post(
+  "http://localhost:5000/api/ai/chat",
+  {
+    message: text,
+    history
+  },
+  {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  }
 );
-
-
-            const reply = res.data.response;
-
+            const reply = res.data.reply || res.data.response;
             setTyping(false);
 
             // ✅ Add AI reply
@@ -103,9 +129,14 @@ function AIChatPage() {
             }
         } catch (err) {
             console.log("AI Error:", err.response?.data || err);
-
             setTyping(false);
-
+        
+            if (err.response?.status === 401) {
+                alert("Session expired. Please login again.");
+                localStorage.removeItem("token");
+                navigate("/login");
+                return;
+            }
             setMessages((prev) => [
                 ...prev,
                 {
@@ -118,6 +149,24 @@ function AIChatPage() {
         }
     };
 
+    useEffect(() => {
+        const loadHistory = async () => {
+            const token = localStorage.getItem("token");
+            const res = await axios.get(
+                "http://localhost:5000/api/ai/history",
+            { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setMessages(
+                res.data.map(m => ({
+        
+                    role: m.role,
+                    content: m.content,
+                    timestamp: new Date(m.createdAt),
+                }))
+            );
+        };
+        loadHistory();
+    }, []);
     // ✅ Chat Bubble Component
     const ChatBubble = ({ msg }) => {
         const style =

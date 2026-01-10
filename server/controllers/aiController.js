@@ -1,45 +1,70 @@
+const AIConversation = require("../models/AIConversation");
 const { GoogleGenAI } = require("@google/genai");
 
-// Initialize the Gemini client using the environment variable
-const ai = new GoogleGenAI({ 
-    apiKey: process.env.GEMINI_API_KEY 
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
 });
 
 exports.chatWithAI = async (req, res) => {
-    try {
-        const { message } = req.body;
+  try {
+    const { message } = req.body;
+    const userId = req.user._id;
 
-        if (!message) {
-            return res.status(200).json({
-                response: "I'm here with you ❤️. What would you like to talk about?",
-            });
-        }
-
-        // --- GEMINI API CALL ---
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash", // A fast and powerful model for chat
-            contents: message, 
-            config: {
-                // System instructions for CareConnect
-                systemInstruction: "You are CareConnect, a warm and empathetic AI companion. Be supportive and ask gentle questions. Keep your responses concise and helpful.",
-            },
-        });
-        // --- END GEMINI API CALL ---
-
-        // Gemini response structure (uses .text property)
-        const aiResponseText = response.text;
-
-        return res.status(200).json({
-            response: aiResponseText,
-        });
-
-    } catch (error) {
-        console.error("GEMINI API ERROR:", error.message);
-        
-        // Safe, user-friendly fallback
-        return res.status(200).json({
-            response:
-                "I'm here with you ❤️. It seems my system is busy right now, but you’re not alone.",
-        });
+    if (!message) {
+      return res.status(200).json({
+        response: "I'm here with you ❤️. What would you like to talk about?",
+      });
     }
+
+    // 🧠 LOAD LAST 10 MESSAGES
+    const history = await AIConversation.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    const conversationContext = history
+      .reverse()
+      .map(h => `${h.role === "user" ? "User" : "AI"}: ${h.content}`)
+      .join("\n");
+
+    const prompt = `
+You are CareConnect, a warm and empathetic AI companion.
+Be supportive and emotionally aware.
+
+Conversation so far:
+${conversationContext}
+
+User: ${message}
+AI:
+`;
+
+    // SAVE USER MESSAGE
+    await AIConversation.create({
+      userId,
+      role: "user",
+      content: message,
+    });
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    const aiText = response.text;
+
+    // SAVE AI RESPONSE
+    await AIConversation.create({
+      userId,
+      role: "ai",
+      content: aiText,
+    });
+
+    return res.status(200).json({ response: aiText });
+
+  } catch (error) {
+    console.error("AI ERROR:", error.message);
+    return res.status(200).json({
+      response: "I'm here with you ❤️. Please give me a moment.",
+    });
+  }
 };
