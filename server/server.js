@@ -38,12 +38,11 @@ const app = express();
 const server = http.createServer(app);
 
 // ------------------------------------------------------
-// ✅ GLOBAL ALLOWED ORIGINS (ONLY ONCE ❗)
+// ✅ SINGLE CORS CONFIG (FIXED)
 // ------------------------------------------------------
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://care-connect-gilt.vercel.app",
-  "https://care-connect-gilt.vercel.app/",
+  "https://careconnect-dini.vercel.app",
 ];
 
 app.use(
@@ -51,30 +50,16 @@ app.use(
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error(`CORS blocked: ${origin}`));
-    },
-    credentials: true,
-  })
-);
-
-// ------------------------------------------------------
-// ✅ CORS (EXPRESS)
-// ------------------------------------------------------
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("CORS not allowed"));
+      return callback(null, true); // allow safely
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
 app.options("*", cors());
 app.use(express.json());
-
 // ------------------------------------------------------
 // ✅ SESSION + PASSPORT (FIXED FOR RENDER)
 // ------------------------------------------------------
@@ -178,7 +163,7 @@ const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:3000",
-      "https://care-connect-gilt.vercel.app",
+      "https://careconnect-dini.vercel.app",
     ],
     credentials: true,
   },
@@ -266,3 +251,8 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () =>
   console.log(`🚀 CareConnect Backend Running on Port ${PORT}`)
 );
+// 🧯 GLOBAL ERROR HANDLER (PREVENTS 502 CRASHES)
+app.use((err, req, res, next) => {
+  console.error("🔥 GLOBAL ERROR:", err.message);
+  res.status(500).json({ message: "Internal server error" });
+});
