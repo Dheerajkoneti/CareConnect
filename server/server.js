@@ -21,13 +21,17 @@ if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
 }
 
 const serviceAccount = JSON.parse(
-  process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+  Buffer.from(
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
+    "base64"
+  ).toString("utf8")
 );
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
-console.log("✅ Firebase Admin Initialized");
+
+console.log("✅ Firebase Admin Initialized (prod)");
 // ------------------------------------------------------
 // ✅ Express App + HTTP Server
 // ------------------------------------------------------
