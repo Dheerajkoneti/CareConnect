@@ -15,29 +15,19 @@ require("./config/passport"); // ✅ Load Google OAuth Strategy
 // ✅ FIREBASE ADMIN SDK SETUP (LOCAL + PRODUCTION SAFE)
 // ------------------------------------------------------
 const admin = require("firebase-admin");
-const fs = require("fs");   // ✅ fs only, NO path here
 
-if (process.env.NODE_ENV === "production") {
-  const serviceAccount = JSON.parse(
-    Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, "base64").toString("utf8")
-  );
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-
-  console.log("✅ Firebase Admin Initialized (prod)");
-} else {
-  const serviceAccount = JSON.parse(
-    fs.readFileSync("./serviceAccountKey.json", "utf8")
-  );
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-
-  console.log("✅ Firebase Admin Initialized (local)");
+if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+  throw new Error("❌ FIREBASE_SERVICE_ACCOUNT_KEY is missing");
 }
+
+const serviceAccount = JSON.parse(
+  process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+);
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+console.log("✅ Firebase Admin Initialized");
 // ------------------------------------------------------
 // ✅ Express App + HTTP Server
 // ------------------------------------------------------
@@ -122,7 +112,6 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/calls", callRoutes);
 app.use("/api/mood", moodRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/ai", aiRoutes);
 // ======================================================
 // ✅ PUBLIC USER LIST FOR DIRECT CHAT
 // ======================================================
