@@ -3,8 +3,6 @@ import React, { useState } from 'react';
 import api from "../utils/axiosInstance";
 import { useNavigate } from 'react-router-dom';
 import { FaHeart } from 'react-icons/fa';
-import axios from "axios"; // Icons
-import axios from "../utils/axiosInstance";
 function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

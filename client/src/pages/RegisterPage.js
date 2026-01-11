@@ -1,11 +1,8 @@
 // client/src/pages/RegisterPage.js (FINAL & FIXED)
 import React, { useState } from 'react';
 import api from "../utils/axiosInstance";
-import axios from "../utils/axiosInstance";
 import { useNavigate } from 'react-router-dom';
 import { FaGoogle, FaHeart } from 'react-icons/fa';
-import axios from "axios";
-
 const ACCENT_PURPLE = '#6A1B9A';
 const LIGHT_BACKGROUND = '#F0F4F7';
 

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import socket from "../utils/socket";
-import axios from "axios";
 import "../styles/voicecall.css"; // ✅ CSS import
 
 

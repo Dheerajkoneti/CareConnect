@@ -1,7 +1,8 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://careconnect-dini.onrender.com",
+  baseURL: "https://careconnect-dini.onrender.com", // ✅ LIVE backend
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
