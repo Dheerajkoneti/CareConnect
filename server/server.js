@@ -130,6 +130,7 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/calls", callRoutes);
 app.use("/api/mood", moodRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/calls", require("./routes/callRoutes"));
 
 // ------------------------------------------------------
 // ✅ PUBLIC USER LIST
@@ -177,6 +178,23 @@ function broadcastPresence() {
 }
 io.on("connection", (socket) => {
   console.log("🔗 Socket connected:", socket.id);
+  // ===============================
+// ✅ REGISTER USER SOCKET (REQUIRED)
+// ===============================
+socket.on("register-user", async (userId) => {
+  try {
+    await User.findByIdAndUpdate(userId, {
+      socketId: socket.id,
+      isOnline: true,
+      status: "active",
+      lastActive: new Date(),
+    });
+
+    console.log("✅ User registered:", userId, socket.id);
+  } catch (err) {
+    console.error("❌ register-user error:", err.message);
+  }
+});
 
   // USER SETUP
   socket.on("setup", (user) => {
@@ -206,9 +224,28 @@ io.on("connection", (socket) => {
   });
 
   // WEBRTC CALL
-  socket.on("call:request", (data) => io.to(data.to).emit("call:incoming", data));
-  socket.on("call:accept", (data) => io.to(data.to).emit("call:accepted", data));
-  socket.on("call:reject", (data) => io.to(data.to).emit("call:rejected", data));
+  socket.on("call-user", async ({ toUserId, fromUser, roomId }) => {
+  const receiver = await User.findById(toUserId);
+
+  if (receiver?.socketId) {
+    io.to(receiver.socketId).emit("incoming-call", {
+      fromUser,
+      roomId,
+    });
+  }
+});
+  socket.on("call-accepted", async ({ toUserId, roomId }) => {
+  const caller = await User.findById(toUserId);
+  if (caller?.socketId) {
+    io.to(caller.socketId).emit("call-accepted", { roomId });
+  }
+});
+  socket.on("call-rejected", async ({ toUserId }) => {
+  const caller = await User.findById(toUserId);
+  if (caller?.socketId) {
+    io.to(caller.socketId).emit("call-rejected");
+  }
+});
 
   socket.on("webrtc_offer", (data) =>
     socket.to(data.to).emit("webrtc_offer", data)
@@ -233,11 +270,25 @@ io.on("connection", (socket) => {
   socket.on("chat:typing_stop", (d) =>
     socket.broadcast.emit("chat:typing_stop", d)
   );
-  socket.on("disconnect", () => {
-    onlineUsers.delete(socket.id);
-    broadcastPresence();
-    console.log("❌ Socket disconnected:", socket.id);
-  });
+  socket.on("disconnect", async () => {
+  try {
+    await User.findOneAndUpdate(
+      { socketId: socket.id },
+      {
+        socketId: null,
+        isOnline: false,
+        status: "offline",
+        lastActive: new Date(),
+      }
+    );
+  } catch (err) {
+    console.error("❌ disconnect error:", err.message);
+  }
+
+  onlineUsers.delete(socket.id);
+  broadcastPresence();
+  console.log("❌ Socket disconnected:", socket.id);
+});
 });
 // ------------------------------------------------------
 // ✅ ROOT

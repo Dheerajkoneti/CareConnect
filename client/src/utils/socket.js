@@ -5,8 +5,11 @@ const SOCKET_URL =
   "https://careconnect-dini.onrender.com";
 
 const socket = io(SOCKET_URL, {
+  path: "/socket.io",
   transports: ["websocket"],
-  withCredentials: true,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
 });
 
 export default socket;
