@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
 import socket from "./utils/socket";
+import { Navigate } from "react-router-dom";
 
 // 🔔 GLOBAL INCOMING CALL LISTENER
 import IncomingCallListener from "./components/IncomingCallListener";

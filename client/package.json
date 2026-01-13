@@ -2,7 +2,6 @@
   "name": "client",
   "version": "1.0.0",
   "private": true,
-  "homepage": ".",
   "description": "Frontend application for CareConnect using React",
   "main": "index.js",
   "scripts": {
