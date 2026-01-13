@@ -77,6 +77,7 @@ function App() {
         {/* 📞 CALLS */}
         <Route path="/video-call/:roomId" element={<VideoCallPage />} />
         <Route path="/voice-call" element={<VoiceCallPage />} />
+        <Route path="/video-call" element={<VideoCallPage />} />
 
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/call-history" element={<CallHistoryPage />} />
