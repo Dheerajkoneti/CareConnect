@@ -1,38 +1,57 @@
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import { ThemeProvider } from './context/ThemeContext';
+import React, { useEffect } from "react";
+import { Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "./context/ThemeContext";
+import socket from "./utils/socket";
 
-// Core Components
-import AuthChecker from './components/AuthChecker';
-import DashboardHome from './pages/DashboardHome';
-import AIChatPage from './pages/AIChatPage';
-import VolunteerPage from './pages/VolunteerPage';
-import WellnessPage from './pages/WellnessPage';
-import ResourcesPage from './pages/ResourcesPage';
-import CommunityFeed from './pages/CommunityFeed';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import SettingsPage from './pages/ProfilePage';
-import ProgressPage from './pages/ProgressPage';
-import FeedbackPage from './pages/FeedbackPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
-import VideoCallPage from './pages/VideoCallPage';
-import ReelsViewer from './pages/ReelsViewer';
-import ChatPage from './pages/ChatPage';
-import CommunityChat from './pages/CommunityChat';
-import GroupChatView from './pages/GroupChatView';
+// 🔔 GLOBAL INCOMING CALL LISTENER
+import IncomingCallListener from "./components/IncomingCallListener";
+
+// Pages
+import AuthChecker from "./components/AuthChecker";
+import DashboardHome from "./pages/DashboardHome";
+import AIChatPage from "./pages/AIChatPage";
+import VolunteerPage from "./pages/VolunteerPage";
+import WellnessPage from "./pages/WellnessPage";
+import ResourcesPage from "./pages/ResourcesPage";
+import CommunityFeed from "./pages/CommunityFeed";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import SettingsPage from "./pages/ProfilePage";
+import ProgressPage from "./pages/ProgressPage";
+import FeedbackPage from "./pages/FeedbackPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+import VideoCallPage from "./pages/VideoCallPage";
+import ReelsViewer from "./pages/ReelsViewer";
+import ChatPage from "./pages/ChatPage";
+import CommunityChat from "./pages/CommunityChat";
+import GroupChatView from "./pages/GroupChatView";
 import ActiveChatPage from "./pages/ActiveChatPage";
 import LandingPage from "./pages/LandingPage";
 import VoiceCallPage from "./pages/VoiceCallPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import CallHistoryPage from "./pages/CallHistoryPage"; // ✅ FIX
 
 function App() {
+
+  // 🌍 GLOBAL SOCKET REGISTRATION (ONLINE STATUS)
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    if (userId) {
+      socket.emit("register-user", userId);
+      console.log("🌍 GLOBAL socket registered:", userId);
+    }
+  }, []);
+
   return (
     <ThemeProvider>
+
+      {/* 🔔 MUST BE HERE — OUTSIDE ROUTES */}
+      <IncomingCallListener />
+
       <div className="App">
         <Routes>
 
-          {/* Landing page */}
+          {/* Landing */}
           <Route path="/landing" element={<LandingPage />} />
 
           {/* Public */}
@@ -55,7 +74,7 @@ function App() {
           <Route path="/chat/:userId" element={<ChatPage />} />
           <Route path="/active-chats" element={<ActiveChatPage />} />
 
-          {/* AI + Wellness + Volunteers */}
+          {/* AI + Others */}
           <Route path="/ai-chat" element={<AIChatPage />} />
           <Route path="/volunteers" element={<VolunteerPage />} />
           <Route path="/wellness" element={<WellnessPage />} />
@@ -63,14 +82,19 @@ function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/progress" element={<ProgressPage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
-          <Route path="/video-call" element={<VideoCallPage />} />
-          
+
+          {/* Calls */}
+          <Route path="/video-call/:roomId" element={<VideoCallPage />} />
+          <Route path="/voice-call" element={<VoiceCallPage />} />
+
+          {/* Notifications */}
+          <Route path="/notifications" element={<NotificationsPage />} />
+
+          {/* Call History */}
+          <Route path="/call-history" element={<CallHistoryPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<h1>404 Not Found</h1>} />
-          <Route path="/voice-call" element={<VoiceCallPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-
 
         </Routes>
       </div>

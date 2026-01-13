@@ -178,117 +178,86 @@ function broadcastPresence() {
 }
 io.on("connection", (socket) => {
   console.log("🔗 Socket connected:", socket.id);
+
+  // ✅ REGISTER USER (CRITICAL)
+  socket.on("register-user", async (userId) => {
+    try {
+      await User.findByIdAndUpdate(userId, {
+        socketId: socket.id,
+        isOnline: true,
+        status: "active",
+        lastActive: new Date(),
+      });
+
+      console.log("✅ REGISTERED:", userId, socket.id);
+    } catch (err) {
+      console.error("❌ register-user error:", err.message);
+    }
+  });
+
   // ===============================
-// ✅ REGISTER USER SOCKET (REQUIRED)
-// ===============================
-socket.on("register-user", async (userId) => {
-  try {
-    await User.findByIdAndUpdate(userId, {
-      socketId: socket.id,
-      isOnline: true,
-      status: "active",
-      lastActive: new Date(),
-    });
-
-    console.log("✅ User registered:", userId, socket.id);
-  } catch (err) {
-    console.error("❌ register-user error:", err.message);
-  }
-});
-
-  // USER SETUP
-  socket.on("setup", (user) => {
-    onlineUsers.set(socket.id, {
-      socketId: socket.id,
-      userId: user?._id,
-      name: user?.name || user?.fullName || "Unknown",
-      role: user?.role || "user",
-      status: "active",
-    });
-    broadcastPresence();
-  });
-
-  // STATUS
-  socket.on("status_change", ({ status, customStatus }) => {
-    const u = onlineUsers.get(socket.id);
-    if (!u) return;
-    u.status = status;
-    u.customStatus = customStatus || "";
-    onlineUsers.set(socket.id, u);
-    broadcastPresence();
-  });
-
-  // DIRECT CHAT
-  socket.on("send_message", (msg) => {
-    io.emit("receive_message", msg);
-  });
-
-  // WEBRTC CALL
+  // 📞 CALL USER
+  // ===============================
   socket.on("call-user", async ({ toUserId, fromUser, roomId }) => {
-  const receiver = await User.findById(toUserId);
+    console.log("📞 CALL:", fromUser, "→", toUserId);
 
-  if (receiver?.socketId) {
+    const receiver = await User.findById(toUserId);
+
+    if (!receiver?.socketId) {
+      console.log("❌ RECEIVER OFFLINE:", toUserId);
+      return;
+    }
+
     io.to(receiver.socketId).emit("incoming-call", {
       fromUser,
       roomId,
     });
-  }
-});
+
+    console.log("🚀 incoming-call sent");
+  });
+
+  // ===============================
+  // ✅ ACCEPT CALL
+  // ===============================
   socket.on("call-accepted", async ({ toUserId, roomId }) => {
-  const caller = await User.findById(toUserId);
-  if (caller?.socketId) {
-    io.to(caller.socketId).emit("call-accepted", { roomId });
-  }
-});
+    const caller = await User.findById(toUserId);
+
+    if (caller?.socketId) {
+      io.to(caller.socketId).emit("call-accepted", { roomId });
+    }
+  });
+
+  // ===============================
+  // ❌ REJECT CALL
+  // ===============================
   socket.on("call-rejected", async ({ toUserId }) => {
-  const caller = await User.findById(toUserId);
-  if (caller?.socketId) {
-    io.to(caller.socketId).emit("call-rejected");
-  }
-});
+    const caller = await User.findById(toUserId);
 
-  socket.on("webrtc_offer", (data) =>
-    socket.to(data.to).emit("webrtc_offer", data)
-  );
-  socket.on("webrtc_answer", (data) =>
-    socket.to(data.to).emit("webrtc_answer", data)
-  );
-  socket.on("webrtc_ice_candidate", (data) =>
-    socket.to(data.to).emit("webrtc_ice_candidate", data)
-  );
-  // VOICE CALL
-  socket.on("voice:offer", (d) => io.to(d.to).emit("voice:offer", { from: socket.id, offer: d.offer }));
-  socket.on("voice:answer", (d) => io.to(d.to).emit("voice:answer", { from: socket.id, answer: d.answer }));
-  socket.on("voice:ice", (d) => io.to(d.to).emit("voice:ice", { from: socket.id, candidate: d.candidate }));
-  socket.on("voice:end", (d) => io.to(d.to).emit("voice:end"));
-  // COMMUNITY CHAT
-  socket.on("chat:new", (msg) => io.emit("chat:new", msg));
-  socket.on("chat:delete", (id) => io.emit("chat:delete", id));
-  socket.on("chat:edit", (msg) => io.emit("chat:edit", msg));
-  socket.on("chat:reaction", (msg) => io.emit("chat:reaction", msg));
-  socket.on("chat:typing", (d) => socket.broadcast.emit("chat:typing", d));
-  socket.on("chat:typing_stop", (d) =>
-    socket.broadcast.emit("chat:typing_stop", d)
-  );
+    if (caller?.socketId) {
+      io.to(caller.socketId).emit("call-rejected");
+    }
+  });
+
+  // ===============================
+  // 🔴 DISCONNECT
+  // ===============================
   socket.on("disconnect", async () => {
-  try {
-    await User.findOneAndUpdate(
-      { socketId: socket.id },
-      {
-        socketId: null,
-        isOnline: false,
-        status: "offline",
-        lastActive: new Date(),
-      }
-    );
-  } catch (err) {
-    console.error("❌ disconnect error:", err.message);
-  }
+    try {
+      await User.findOneAndUpdate(
+        { socketId: socket.id },
+        {
+          socketId: null,
+          isOnline: false,
+          status: "offline",
+          lastActive: new Date(),
+        }
+      );
+    } catch (err) {
+      console.error("❌ disconnect error:", err.message);
+    }
 
-  onlineUsers.delete(socket.id);
-  broadcastPresence();
-  console.log("❌ Socket disconnected:", socket.id);
-});
+    console.log("❌ Socket disconnected:", socket.id);
+  });
 });
 // ------------------------------------------------------
 // ✅ ROOT
