@@ -13,6 +13,11 @@ module.exports = function socketHandler(io) {
   // optional: map socketId -> volunteerId for cleanup
   const socketToVolunteer = new Map();
 
+  // Map userId -> socketId (for calls/chat users)
+  const userSockets = new Map();
+// Map socketId -> userId
+  const socketToUser = new Map();
+
   io.on("connection", (socket) => {
     console.log(`🔗 Socket connected: ${socket.id}`);
 
@@ -39,7 +44,32 @@ module.exports = function socketHandler(io) {
       } catch (e) { /* ignore */ }
       io.emit("status_updated", { volunteerId, status });
     });
+    // =======================
+    // 👤 NORMAL USER REGISTER
+    // =======================
+    socket.on("register-user", (userId) => {
+      if (!userId) return;
+        userSockets.set(userId, socket.id);
+        socketToUser.set(socket.id, userId);
+        console.log("👤 User registered:", userId, socket.id);
+      });
+      // =======================
+      // 📞 CALL USER
+      // =======================
+      socket.on("call-user", ({ toUserId, roomId, fromUser }) => {
+      console.log("📞 Call attempt:", fromUser, "→", toUserId);
 
+      const targetSocketId = userSockets.get(toUserId);
+
+      if (!targetSocketId) {
+        socket.emit("call-failed", { reason: "User offline" });
+        return;
+      }
+      io.to(targetSocketId).emit("incoming-call", {
+      roomId,
+      fromUser,
+    });  console.log("📞 Incoming call sent to:", toUserId);
+  });
     // User requests volunteer invite (send notification to volunteer)
     // payload: { volunteerId, userId, userName, type: 'chat'|'call' }
     socket.on("invite_volunteer", async (payload) => {
@@ -140,16 +170,26 @@ module.exports = function socketHandler(io) {
 
     // On disconnect cleanup
     socket.on("disconnect", async () => {
-      console.log(`⚠️ Socket disconnected: ${socket.id}`);
-      const volId = socketToVolunteer.get(socket.id);
-      if (volId) {
-        volunteerSockets.delete(volId);
-        socketToVolunteer.delete(socket.id);
-        try {
-          await Volunteer.findByIdAndUpdate(volId, { status: "offline", socketId: null });
-        } catch (e) {}
-        io.emit("status_updated", { volunteerId: volId, status: "offline" });
-      }
-    });
+  console.log(`⚠️ Socket disconnected: ${socket.id}`);
+
+  // Volunteer cleanup (existing)
+  const volId = socketToVolunteer.get(socket.id);
+  if (volId) {
+    volunteerSockets.delete(volId);
+    socketToVolunteer.delete(socket.id);
+    try {
+      await Volunteer.findByIdAndUpdate(volId, { status: "offline", socketId: null });
+    } catch (e) {}
+    io.emit("status_updated", { volunteerId: volId, status: "offline" });
+  }
+
+  // 👤 User cleanup (NEW)
+  const userId = socketToUser.get(socket.id);
+  if (userId) {
+    userSockets.delete(userId);
+    socketToUser.delete(socket.id);
+    console.log("👤 User removed:", userId);
+  }
+});
   });
 };

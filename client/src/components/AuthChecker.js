@@ -1,23 +1,25 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
-// ✅ AuthChecker redirects instead of rendering pages directly.
-// This keeps routing stable and prevents breaking other routes.
+import socket from "../utils/socket";
 
 const AuthChecker = () => {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
 
-    useEffect(() => {
-        const isAuthenticated = localStorage.getItem("token");
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const userId = localStorage.getItem("userId");
 
-        if (isAuthenticated) {
-            navigate("/dashboard");   // ✅ If logged in → go to dashboard
-        } else {
-            navigate("/landing");     // ✅ If NOT logged in → go to landing page
-        }
-    }, [navigate]);
+    // 🔥 REGISTER SOCKET ONCE (GLOBAL)
+    if (token && userId) {
+      socket.emit("register-user", userId);
+      console.log("✅ Socket registered from AuthChecker:", userId);
+      navigate("/dashboard");     // logged in
+    } else {
+      navigate("/landing");       // not logged in
+    }
+  }, [navigate]);
 
-    return null; // ✅ Nothing renders, just redirects.
+  return null;
 };
 
 export default AuthChecker;
