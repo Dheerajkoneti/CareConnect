@@ -143,7 +143,12 @@ export default function ActiveChatPage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      window.location.href = `/video-call?user=${u._id}`;
+                      const roomId = `${myId}_${u._id}`;
+                      socket.emit("call-user", {
+                        toUserId: u._id,
+                        fromUser: myId,
+                        roomId,
+                      });
                     }}
                   >
                     🎥

@@ -491,7 +491,14 @@ export default function VideoCallPage() {
               className="small-btn"
               onClick={() => {
                 if (!room) return toast("⚠️ Enter a valid room code");
-                socket.emit("join_room", { room });
+                socket.emit("join_room", {
+                  room,
+                  user: {
+                    _id: myId,
+                    name: myName,
+                    role: myRole,
+                  },
+                });
                 toast("✅ Joined room");
               }}
             >

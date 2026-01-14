@@ -178,7 +178,17 @@ function broadcastPresence() {
 }
 io.on("connection", (socket) => {
   console.log("🔗 Socket connected:", socket.id);
-
+  socket.on("join_room", ({ room, user }) => {
+    socket.join(room);
+      onlineUsers.set(socket.id, {
+        socketId: socket.id,
+        userId: user._id,
+        name: user.name,
+        role: user.role,
+        status: "active",
+      });
+    broadcastPresence();
+  });
   // ✅ REGISTER USER (CRITICAL)
   socket.on("register-user", async (userId) => {
     try {
@@ -242,20 +252,17 @@ io.on("connection", (socket) => {
   // 🔴 DISCONNECT
   // ===============================
   socket.on("disconnect", async () => {
-    try {
-      await User.findOneAndUpdate(
-        { socketId: socket.id },
-        {
-          socketId: null,
-          isOnline: false,
-          status: "offline",
-          lastActive: new Date(),
-        }
-      );
-    } catch (err) {
-      console.error("❌ disconnect error:", err.message);
-    }
-
+    onlineUsers.delete(socket.id);
+    broadcastPresence();
+    await User.findOneAndUpdate(
+      { socketId: socket.id },
+      {
+        socketId: null,
+        isOnline: false,
+        status: "offline",
+        lastActive: new Date(),
+      }
+    );
     console.log("❌ Socket disconnected:", socket.id);
   });
 });
