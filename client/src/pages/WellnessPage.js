@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'; 
 import Sidebar from '../components/Sidebar';
-import { FaBed, FaAppleAlt, FaBrain, FaRunning, FaSun, FaMusic, FaStop, FaClock, FaVolumeUp, FaUpload, FaBan, FaTint, FaRedo, FaPlay, FaPause, FaTimesCircle } from 'react-icons/fa'; 
-
+import { FaBed, FaAppleAlt, FaBrain, FaRunning, FaSun, FaMusic, FaStop, FaClock, FaUpload, FaBan, FaTint, FaPlay, FaPause, FaTimesCircle } from 'react-icons/fa'; 
+import { useCallback } from "react";
 // --- Sound Definitions ---
 const SOUND_OPTIONS = [
     { value: 'none', label: '--- No Alarm Sound ---' },
@@ -46,15 +46,13 @@ const TipCard = ({ tip, onClick }) => (
 
 
 function WellnessPage() {
-    const [mood, setMood] = useState(3); 
+    const [mood] = useState(3); 
     const [journalEntry, setJournalEntry] = useState('');
     const [activeTips] = useState(TIPS_DATA); 
     
     // 🎯 RESTORED SOUND STATES 🎯
     const [selectedSound, setSelectedSound] = useState(SOUND_OPTIONS[1].value); 
-    const [uploadedSoundUrl, setUploadedSoundUrl] = useState(null); 
-    const [uploadedFileName, setUploadedFileName] = useState(null); 
-    
+    const [uploadedSoundUrl, setUploadedSoundUrl] = useState(null);  
     const [isAlarmActive, setIsAlarmActive] = useState(false); 
     const [customDuration, setCustomDuration] = useState(INITIAL_SETUP_TIME); 
     
@@ -118,30 +116,21 @@ function WellnessPage() {
         }
     };
 
-    const playAlarmSound = () => {
+    const playAlarmSound = useCallback(() => {
         const source = getCurrentSoundSource();
-        
-        if (!source || source === 'none') {
-            console.warn("Alarm source is null or set to 'none'. Skipping audio.");
-            return; 
-        }
+        if (!source || source === "none") return;
 
         if (audioRef.current) {
-            audioRef.current.loop = true; 
-            audioRef.current.src = source; 
-            audioRef.current.pause();
+            audioRef.current.loop = true;
+            audioRef.current.src = source;
             audioRef.current.currentTime = 0;
             audioRef.current.volume = 0.5;
-            audioRef.current.play().then(() => {
-                setIsAlarmActive(true);
-                setLastAudioError(null);
-            }).catch(error => {
-                console.warn("Alarm play failed:", error);
-                setLastAudioError("Alarm playback failed. Browser might be blocking. (See console)");
+
+            audioRef.current.play().catch(() => {
+                setLastAudioError("Alarm playback blocked by browser");
             });
         }
-    };
-
+        }, [selectedSound, uploadedSoundUrl]);
     const stopAlarm = () => {
         if (audioRef.current) {
             audioRef.current.pause();
