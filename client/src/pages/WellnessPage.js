@@ -52,7 +52,6 @@ function WellnessPage() {
     
     // 🎯 RESTORED SOUND STATES 🎯
     const [selectedSound, setSelectedSound] = useState(SOUND_OPTIONS[1].value); 
-    const [uploadedSoundUrl, setUploadedSoundUrl] = useState(null);  
     const [isAlarmActive, setIsAlarmActive] = useState(false); 
     const [customDuration, setCustomDuration] = useState(INITIAL_SETUP_TIME); 
     
@@ -78,7 +77,6 @@ function WellnessPage() {
 
         if (savedUrl && savedName) {
             setUploadedSoundUrl(savedUrl);
-            setUploadedFileName(savedName);
             if (savedSelection === 'custom' || SOUND_OPTIONS.some(o => o.value === savedSelection)) {
                 setSelectedSound(savedSelection);
             }
@@ -155,9 +153,7 @@ function WellnessPage() {
             const newUrl = URL.createObjectURL(file);
             localStorage.setItem('customAlarmUrl', newUrl);
             localStorage.setItem('customAlarmName', file.name);
-
             setUploadedSoundUrl(newUrl);
-            setUploadedFileName(file.name);
             setSelectedSound('custom'); 
             localStorage.setItem('selectedAlarm', 'custom');
             
@@ -177,7 +173,6 @@ function WellnessPage() {
         localStorage.removeItem('customAlarmUrl');
         localStorage.removeItem('customAlarmName');
         setUploadedSoundUrl(null);
-        setUploadedFileName(null);
         // Revert to 'none'
         if (selectedSound === 'custom') {
             setSelectedSound(SOUND_OPTIONS[0].value);
