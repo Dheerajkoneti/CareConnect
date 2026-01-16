@@ -52,6 +52,7 @@ function WellnessPage() {
     
     // 🎯 RESTORED SOUND STATES 🎯
     const [selectedSound, setSelectedSound] = useState(SOUND_OPTIONS[1].value); 
+    const [uploadedSoundUrl, setUploadedSoundUrl] = useState(null);
     const [isAlarmActive, setIsAlarmActive] = useState(false); 
     const [customDuration, setCustomDuration] = useState(INITIAL_SETUP_TIME); 
     
