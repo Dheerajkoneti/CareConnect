@@ -413,10 +413,10 @@ function WellnessPage() {
                 {/* HIDDEN FILE INPUT - Triggered by custom upload button */}
                 <input
                     type="file"
-                    ref={useRef(null)}
+                    ref={fileInputRef}
                     accept="audio/*"
                     onChange={handleFileUpload}
-                    style={{ display: 'none' }}
+                    style={{ display: "none" }}
                 />
 
                 {/* Header */}
