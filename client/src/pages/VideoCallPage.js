@@ -30,14 +30,25 @@ const toast = (msg) => {
     setTimeout(() => el.remove(), 300);
   }, 2800);
 };
-
 // ✅ Helper for random room
 const genRoom = () => Math.random().toString(36).slice(2, 8);
-
 const pcConfig = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
 
+    // ✅ TURN server (REQUIRED for mobile & production)
+    {
+      urls: "turn:openrelay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ],
+};
 export default function VideoCallPage() {
   // ------------------------------------------------------------
   // Identity (fallback for local)
@@ -146,14 +157,6 @@ export default function VideoCallPage() {
     const base = `${window.location.origin}/video-call`;
     setShareUrl(room ? `${base}?room=${room}` : "");
   }, [room]);
-  useEffect(() => {
-  // Auto-start ONLY if user came via call link (caller side)
-    const isCaller = window.location.search.includes("room=");
-    if (isCaller && room && !pcRef.current) {
-      startCallWithRoom(room);
-    }
-  // eslint-disable-next-line
-  }, [room]);
   // ------------------------------------------------------------
   // WebRTC: media helpers
   // ------------------------------------------------------------
@@ -164,24 +167,24 @@ export default function VideoCallPage() {
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
         video: { facingMode: facingMode || "user" },
       });
-
       streamRef.current = stream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
-
       // Replace tracks in active call
       if (pcRef.current) {
         const vTrack = stream.getVideoTracks()[0];
         const aTrack = stream.getAudioTracks()[0];
         const senders = pcRef.current.getSenders();
-
         const vSender = senders.find((s) => s.track?.kind === "video");
         const aSender = senders.find((s) => s.track?.kind === "audio");
-
         if (vSender) vSender.replaceTrack(vTrack);
         if (aSender) aSender.replaceTrack(aTrack);
       }
@@ -190,11 +193,9 @@ export default function VideoCallPage() {
       alert("Camera or microphone permission denied.");
     }
   }
-
   function stopLocalMedia() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
   }
-
   // ------------------------------------------------------------
   // WebRTC: PeerConnection
   // ------------------------------------------------------------
@@ -207,7 +208,6 @@ export default function VideoCallPage() {
         pc.addTrack(track, streamRef.current);
       });
     }
-
     pc.onicecandidate = (e) => {
       if (e.candidate && room) {
         socket.emit("webrtc_ice_candidate", {
@@ -216,45 +216,43 @@ export default function VideoCallPage() {
         });
       }
     };
-
     pc.ontrack = (e) => {
       const [remoteStream] = e.streams;
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
       }
     };
-
     pc.onconnectionstatechange = () => {
       if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
         teardownCall();
       }
     };
-
     pcRef.current = pc;
     return pc;
   }
-
-  async function handleOffer(data) {
-    if (data.room !== room) return;
-
+  async function handleOffer({ room: r, sdp }) {
+    if (r !== room) return;
+    if (!streamRef.current) {
+      await startLocalMedia(); // 🔥 REQUIRED
+    }
+    socket.emit("join_room", {
+      room: r,
+      user: { _id: myId, name: myName, role: myRole },
+    });
     const pc = ensurePc();
-    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-
+    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-
-    socket.emit("webrtc_answer", { room, sdp: answer });
+    socket.emit("webrtc_answer", { room: r, sdp: answer });
     setInCall(true);
-    toast("✅ Connected!");
+    toast("✅ Call connected");
   }
-
-  async function handleAnswer(data) {
-    if (data.room !== room) return;
+  async function handleAnswer({ room: r, sdp }) {
+    if (r !== room) return;
     await pcRef.current?.setRemoteDescription(
-      new RTCSessionDescription(data.sdp)
+      new RTCSessionDescription(sdp)
     );
   }
-
   async function handleIce(data) {
     if (data.room !== room) return;
     try {
@@ -263,17 +261,19 @@ export default function VideoCallPage() {
       );
     } catch {}
   }
-
   function handleCallEnd() {
     toast("⭕ Call ended");
     teardownCall();
   }
-
   // ------------------------------------------------------------
   // WebRTC Start Call
   // ------------------------------------------------------------
-  async function startCallWithRoom(r) {
-    if (!r) return;
+async function startCallWithRoom(r) {
+  if (!r || pcRef.current) return;
+    setRoom(r);
+    if (!streamRef.current) {
+      await startLocalMedia(); // ✅ ensure media exists
+    }
     socket.emit("join_room", {
       room: r,
       user: {
@@ -283,16 +283,14 @@ export default function VideoCallPage() {
       },
     });
     const pc = ensurePc();
-    const offer = await pc.createOffer();
+    const offer = await pc.createOffer({
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: true,
+    });
     await pc.setLocalDescription(offer);
     socket.emit("webrtc_offer", { room: r, sdp: offer });
-    setRoom(r);
     setInCall(true);
     toast("📞 Calling user...");
-  }
-  function endCall() {
-    if (room) socket.emit("call_end", { room });
-    teardownCall();
   }
   // ------------------------------------------------------------
   // Chat
@@ -300,19 +298,16 @@ export default function VideoCallPage() {
   function sendChat(e) {
     e.preventDefault();
     if (!chatInput.trim() || !room) return;
-
     const msg = {
       room,
       text: chatInput,
       from: { id: myId, name: myName },
       ts: Date.now(),
     };
-
     socket.emit("vc:chat", msg);
     setChat((p) => [...p, msg]);
     setChatInput("");
   }
-
   // ------------------------------------------------------------
   // Controls
   // ------------------------------------------------------------
@@ -325,7 +320,6 @@ export default function VideoCallPage() {
     streamRef.current?.getAudioTracks().forEach((t) => (t.enabled = !enabled));
     setMuted(enabled);
   }
-
   function toggleCam() {
     const enabled =
       streamRef.current
@@ -335,41 +329,33 @@ export default function VideoCallPage() {
     streamRef.current?.getVideoTracks().forEach((t) => (t.enabled = !enabled));
     setCamOff(enabled);
   }
-
   async function flipCamera() {
     const mode =
       streamRef.current?.getVideoTracks()[0]?.getSettings()?.facingMode;
     const next = mode === "environment" ? "user" : "environment";
     await startLocalMedia(next);
   }
-
   function teardownCall() {
     setInCall(false);
-
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;
     }
-
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
   }
-
   function teardownEverything() {
     teardownCall();
     stopLocalMedia();
   }
-
   // ------------------------------------------------------------
   // Render
   // ------------------------------------------------------------
   return (
     <div className="video-call-page">
       <Sidebar />
-
       <div className="vc-container">
-
         {/* -------------------- TITLE + STATUS -------------------- */}
         <div className="topbar">
           <div className="title">📞 Live Video Call</div>
@@ -390,7 +376,6 @@ export default function VideoCallPage() {
             {customStatus || status}
           </div>
         </div>
-
         {/* -------------------- VIDEO SECTION -------------------- */}
         <div className="video-section">
           <div className="video-box-container">
