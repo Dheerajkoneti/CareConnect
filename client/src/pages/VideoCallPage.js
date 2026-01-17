@@ -74,6 +74,8 @@ export default function VideoCallPage() {
   const [camOff, setCamOff] = useState(false);
   const [status] = useState("active");
   const [customStatus] = useState("");
+  const [ringingTo, setRingingTo] = useState(null);   // outgoing
+  const [incomingCall, setIncomingCall] = useState(null); // incoming\
   const [inCall, setInCall] = useState(false);
   // ------------------------------------------------------------
   // Media & WebRTC
@@ -114,13 +116,16 @@ export default function VideoCallPage() {
   useEffect(() => {
     // ✅ 1: Setup identity
     // ✅ 2: Presence stream
-    socket.emit("register-user", myId);
+    if (myId) {
+      socket.emit("register-user", myId);
+    }
     socket.on("presence:list", (list) => {
       const map = {};
       list.forEach((p) => {
         map[p.userId] = true;
       });
       setPresenceMap(map);
+      setPresence(list);
     });
     // ✅ 3: Fetch directory
     (async () => {
@@ -135,7 +140,18 @@ export default function VideoCallPage() {
 
     // ✅ 4: Start camera immediately
     startLocalMedia();
-
+    socket.on("incoming-call", ({ fromUser, roomId }) => {
+      setIncomingCall({ fromUser, roomId });
+      toast("🔔 Incoming call...");
+    });
+    socket.on("call-accepted", ({ roomId }) => {
+      setRingingTo(null);
+      toast("✅ Call accepted");
+    });
+    socket.on("call-rejected", () => {
+      setRingingTo(null);
+      toast("❌ Call rejected");
+    });
     // ✅ 5: Chat channel
     socket.on("vc:chat", (msg) => {
       if (msg?.room === room) {
@@ -154,6 +170,9 @@ export default function VideoCallPage() {
       socket.off("webrtc_answer");
       socket.off("webrtc_ice_candidate");
       socket.off("call:ended");
+      socket.off("incoming-call");
+      socket.off("call-accepted");
+      socket.off("call-rejected");
       teardownEverything();
     };
     // eslint-disable-next-line
@@ -271,6 +290,26 @@ export default function VideoCallPage() {
     toast("⭕ Call ended");
     teardownCall();
   }
+  function acceptCall() {
+  if (!incomingCall) return;
+
+  socket.emit("call-accepted", {
+    toUserId: incomingCall.fromUser,
+    roomId: incomingCall.roomId,
+  });
+
+  startCallWithRoom(incomingCall.roomId);
+  setIncomingCall(null);
+}
+
+function rejectCall() {
+  if (!incomingCall) return;
+
+  socket.emit("call-rejected", {
+    toUserId: incomingCall.fromUser,
+  });
+  setIncomingCall(null);
+}
   // ------------------------------------------------------------
   // WebRTC Start Call
   // ------------------------------------------------------------
@@ -370,24 +409,20 @@ async function startCallWithRoom(r) {
       <div className="vc-container">
         {/* -------------------- TITLE + STATUS -------------------- */}
         <div className="topbar">
-          <div className="title">📞 Live Video Call</div>
-          <div className="status-chip">
-            <span
-              className="status-dot"
-              style={{
-                background:
-                  status === "active"
-                    ? "#10b981"
-                    : status === "away"
-                    ? "#f59e0b"
-                    : status === "dnd"
-                    ? "#ef4444"
-                    : "#9ca3af",
-              }}
-            />
-            {customStatus || status}
-          </div>
-        </div>
+        <div className="title">📞 Live Video Call</div>
+        <div className="status-chip">
+        <span
+          className="status-dot"
+          style={{ background: "#10b981" }}
+        />
+        {customStatus || status}
+      </div>
+    </div>
+    {ringingTo && (
+    <div className="ringing-banner">
+      🔔 Ringing {ringingTo}...
+    </div>
+  )}
         {/* -------------------- VIDEO SECTION -------------------- */}
         <div className="video-section">
           <div className="video-box-container">
@@ -542,9 +577,8 @@ async function startCallWithRoom(r) {
           {/* CENTER: PARTICIPANTS */}
           <div className="panel participant-panel">
             <div className="panel-title">
-              <FaUsers /> const [presence, setPresence] = useState([]);
+              <FaUsers /> Participants ({presence.length})
             </div>
-
             <div className="list">
               {presence.map((p) => (
                 <div key={p.socketId} className="row">
@@ -583,13 +617,13 @@ async function startCallWithRoom(r) {
                     onClick={() => {
                     const roomId = `${myId}_${p.userId}`;
                     // 🔔 Notify receiver
+                    setRingingTo(p.name);   // OR u.name
                     socket.emit("call-user", {
                       toUserId: p.userId,
                       fromUser: myId,
                       roomId,
                     });
                     // Caller joins room immediately
-                    startCallWithRoom(roomId);
                     toast(`📞 Calling ${p.name}`);
                     }}
                     >
@@ -623,23 +657,22 @@ async function startCallWithRoom(r) {
                     <div className="role">{u.email}</div>
 
                     <div className="status-line">
-                      <span
+                    {(() => {
+                      const isOnline = !!presenceMap[u._id];
+                      return (
+                        <>
+                        <span
                         className="dot"
                         style={{
-                          background:
-                            u.status === "active"
-                              ? "#10b981"
-                              : u.status === "away"
-                              ? "#f59e0b"
-                              : u.status === "dnd"
-                              ? "#ef4444"
-                              : "#9ca3af",
+                          background: isOnline ? "#10b981" : "#9ca3af",
                         }}
-                      ></span>
-                      <span>{u.customStatus || u.status}</span>
+                        ></span>
+                        <span>{isOnline ? "active" : "offline"}</span>
+                        </>
+                      );
+                    })()}
                     </div>
                   </div>
-
                   <button
                     className="thin-btn"
                     disabled={!presenceMap[u._id]}
@@ -655,9 +688,25 @@ async function startCallWithRoom(r) {
               ))}
             </div>
           </div>
-
         </div>
       </div>
+      {/* 📞 INCOMING CALL MODAL */}
+      {incomingCall && (
+        <div className="incoming-call-modal">
+          <div className="modal-box">
+            <h3>📞 Incoming Call</h3>
+            <p>{incomingCall.fromUser} is calling you</p>
+            <div className="modal-actions">
+              <button className="accept" onClick={acceptCall}>
+                Accept
+              </button>
+              <button className="reject" onClick={rejectCall}>
+                Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
