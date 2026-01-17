@@ -172,98 +172,96 @@ const io = new Server(server, {
 });
 const postEvents = require("./socket/postEvents");
 postEvents(io);
-const onlineUsers = new Map();
 function broadcastPresence() {
-  io.emit("presence:list", Array.from(onlineUsers.values()));
+  const presence = [];
+  for (const [userId, sockets] of onlineUsers.entries()) {
+    presence.push({
+      userId,
+      sockets: sockets.size,
+      status: "active",
+    });
+  }
+
+  io.emit("presence:list", presence);
 }
+// ===============================
+// ✅ ONLINE USERS (MULTI SOCKET SAFE)
+// ===============================
+// userId => Set(socketIds)
+const onlineUsers = new Map();
 io.on("connection", (socket) => {
   console.log("🔗 Socket connected:", socket.id);
-  socket.on("join_room", ({ room, user }) => {
+  socket.on("join_room", ({ room }) => {
     socket.join(room);
-      onlineUsers.set(socket.id, {
-        socketId: socket.id,
-        userId: user._id,
-        name: user.name,
-        role: user.role,
-        status: "active",
-      });
-    broadcastPresence();
   });
   // ✅ REGISTER USER (CRITICAL)
-  socket.on("register-user", async (userId) => {
-    try {
-      await User.findByIdAndUpdate(userId, {
-        socketId: socket.id,
-        isOnline: true,
-        status: "active",
-        lastActive: new Date(),
-      });
-
-      console.log("✅ REGISTERED:", userId, socket.id);
-    } catch (err) {
-      console.error("❌ register-user error:", err.message);
+  socket.on("register-user", (userId) => {
+    socket.userId = userId;
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.set(userId, new Set());
     }
+    onlineUsers.get(userId).add(socket.id);
+    console.log("✅ REGISTERED:", userId, socket.id);
+    broadcastPresence();
   });
-
   // ===============================
   // 📞 CALL USER
   // ===============================
-  socket.on("call-user", async ({ toUserId, fromUser, roomId }) => {
-    console.log("📞 CALL:", fromUser, "→", toUserId);
+  socket.on("call-user", ({ toUserId, fromUser, roomId }) => {
+  console.log("📞 CALL:", fromUser, "→", toUserId);
 
-    const receiver = await User.findById(toUserId);
+  const sockets = onlineUsers.get(toUserId);
 
-    if (!receiver?.socketId) {
-      console.log("❌ RECEIVER OFFLINE:", toUserId);
-      return;
-    }
+  if (!sockets || sockets.size === 0) {
+    console.log("❌ RECEIVER OFFLINE:", toUserId);
+    return;
+  }
 
-    io.to(receiver.socketId).emit("incoming-call", {
+  for (const sid of sockets) {
+    io.to(sid).emit("incoming-call", {
       fromUser,
       roomId,
     });
-
-    console.log("🚀 incoming-call sent");
-  });
-
-  // ===============================
+  }
+  console.log("🚀 incoming-call sent");
+});
+//=============================
   // ✅ ACCEPT CALL
   // ===============================
-  socket.on("call-accepted", async ({ toUserId, roomId }) => {
-    const caller = await User.findById(toUserId);
-
-    if (caller?.socketId) {
-      io.to(caller.socketId).emit("call-accepted", { roomId });
+  socket.on("call-accepted", ({ toUserId, roomId }) => {
+    const sockets = onlineUsers.get(toUserId);
+    if (!sockets) return;
+    for (const sid of sockets) {
+      io.to(sid).emit("call-accepted", { roomId });
     }
   });
-
   // ===============================
   // ❌ REJECT CALL
   // ===============================
-  socket.on("call-rejected", async ({ toUserId }) => {
-    const caller = await User.findById(toUserId);
-
-    if (caller?.socketId) {
-      io.to(caller.socketId).emit("call-rejected");
+  socket.on("call-rejected", ({ toUserId }) => {
+    const sockets = onlineUsers.get(toUserId);
+    if (!sockets) return;
+    for (const sid of sockets) {
+      io.to(sid).emit("call-rejected");
     }
   });
 
   // ===============================
   // 🔴 DISCONNECT
   // ===============================
-  socket.on("disconnect", async () => {
-    onlineUsers.delete(socket.id);
+  socket.on("disconnect", () => {
+    const userId = socket.userId;
+    if (!userId) return;
+    const sockets = onlineUsers.get(userId);
+    if (!sockets) return;
+    sockets.delete(socket.id);
+    if (sockets.size === 0) {
+      onlineUsers.delete(userId);
+      console.log("❌ USER OFFLINE:", userId);
+    } else {
+      console.log("⚠️ Socket disconnected but user still online:", userId);
+    }
     broadcastPresence();
-    await User.findOneAndUpdate(
-      { socketId: socket.id },
-      {
-        socketId: null,
-        isOnline: false,
-        status: "offline",
-        lastActive: new Date(),
-      }
-    );
-    console.log("❌ Socket disconnected:", socket.id);
   });
 });
 // ------------------------------------------------------
