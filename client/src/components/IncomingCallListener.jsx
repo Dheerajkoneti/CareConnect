@@ -2,14 +2,17 @@ import { useEffect, useState, useRef } from "react";
 import socket from "../utils/socket";
 
 export default function IncomingCallListener() {
-  const myId = localStorage.getItem("userId");
   const [incomingCall, setIncomingCall] = useState(null);
   const ringtoneRef = useRef(null);
 
-  // 🔔 Listen globally for calls
   useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    if (userId) {
+      socket.emit("register-user", userId);
+    }
+
     socket.on("incoming-call", (data) => {
-      console.log("📞 GLOBAL incoming call:", data);
+      console.log("📞 Incoming call:", data);
       setIncomingCall(data);
       playRingtone();
     });
@@ -19,14 +22,9 @@ export default function IncomingCallListener() {
       setIncomingCall(null);
     });
 
-    const userId = localStorage.getItem("userId");
-    if (userId) {
-      socket.emit("register-user", userId);
-    }
-
     socket.on("call-accepted", ({ roomId }) => {
       stopRingtone();
-      window.location.href = `/video-call/${roomId}`;
+      window.location.href = `/video-call?room=${roomId}`;
     });
 
     return () => {
@@ -57,7 +55,8 @@ export default function IncomingCallListener() {
       toUserId: incomingCall.fromUser,
       roomId: incomingCall.roomId,
     });
-    window.location.href = `/video-call?room=${roomId}`;
+
+    window.location.href = `/video-call?room=${incomingCall.roomId}`;
   };
 
   const rejectCall = () => {
