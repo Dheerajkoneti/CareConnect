@@ -195,8 +195,14 @@ io.on("connection", (socket) => {
     socket.join(room);
   });
   // ✅ REGISTER USER (CRITICAL)
-  socket.on("register-user", (userId) => {
+  socket.on("register-user", async (userId) => {
     socket.userId = userId;
+    // 🔥 fetch user info ONCE
+    const user = await User.findById(userId).lean();
+    socket.userMeta = {
+      name: user?.name || user?.fullName || "User",
+      role: user?.role || "member",
+    };
     if (!onlineUsers.has(userId)) {
       onlineUsers.set(userId, new Set());
     }
@@ -216,7 +222,6 @@ io.on("connection", (socket) => {
     console.log("❌ RECEIVER OFFLINE:", toUserId);
     return;
   }
-
   for (const sid of sockets) {
     io.to(sid).emit("incoming-call", {
       fromUser,
