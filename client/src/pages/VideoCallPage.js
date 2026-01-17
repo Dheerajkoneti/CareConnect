@@ -86,6 +86,7 @@ export default function VideoCallPage() {
   // Presence & Directory
   // ------------------------------------------------------------
   const [presence, setPresence] = useState([]);
+  const [presenceMap, setPresenceMap] = useState({});
   const [directory, setDirectory] = useState([]);
   const [dirQuery, setDirQuery] = useState("");
 
@@ -113,8 +114,14 @@ export default function VideoCallPage() {
   useEffect(() => {
     // ✅ 1: Setup identity
     // ✅ 2: Presence stream
-    socket.on("presence:list", (list) => setPresence(list || []));
-
+    socket.emit("register-user", myId);
+    socket.on("presence:list", (list) => {
+      const map = {};
+      list.forEach((p) => {
+        map[p.userId] = true;
+      });
+      setPresenceMap(map);
+    });
     // ✅ 3: Fetch directory
     (async () => {
       try {
@@ -535,7 +542,7 @@ async function startCallWithRoom(r) {
           {/* CENTER: PARTICIPANTS */}
           <div className="panel participant-panel">
             <div className="panel-title">
-              <FaUsers /> Participants ({presence.length})
+              <FaUsers /> const [presence, setPresence] = useState([]);
             </div>
 
             <div className="list">
@@ -635,6 +642,7 @@ async function startCallWithRoom(r) {
 
                   <button
                     className="thin-btn"
+                    disabled={!presenceMap[u._id]}
                     onClick={() => {
                       const r = `${myId}_${u._id}`;
                       startCallWithRoom(r);
