@@ -19,6 +19,11 @@ export default function IncomingCallListener() {
       setIncomingCall(null);
     });
 
+    const userId = localStorage.getItem("userId");
+    if (userId) {
+      socket.emit("register-user", userId);
+    }
+
     socket.on("call-accepted", ({ roomId }) => {
       stopRingtone();
       window.location.href = `/video-call/${roomId}`;
@@ -52,8 +57,7 @@ export default function IncomingCallListener() {
       toUserId: incomingCall.fromUser,
       roomId: incomingCall.roomId,
     });
-
-    window.location.href = `/video-call/${incomingCall.roomId}`;
+    window.location.href = `/video-call?room=${roomId}`;
   };
 
   const rejectCall = () => {

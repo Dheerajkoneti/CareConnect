@@ -15,7 +15,6 @@ import {
   FaUsers,
   FaComments,
   FaSearch,
-  FaCheckCircle,
 } from "react-icons/fa";
 import "../styles/VideoCallPage.css";
 
@@ -50,23 +49,21 @@ export default function VideoCallPage() {
 
   const myName = localStorage.getItem("userName") || "You";
   const myRole = localStorage.getItem("role") || "community_member";
-
   // ------------------------------------------------------------
   // UI + meeting state
   // ------------------------------------------------------------
-  const [status, setStatus] = useState("active");
-  const [customStatus, setCustomStatus] = useState("");
-
+  //const [status] = useState("active");
+  //const [customStatus] = useState("");
   const [room, setRoom] = useState(() => {
     const url = new URL(window.location.href);
     return url.searchParams.get("room") || "";
   });
   const [shareUrl, setShareUrl] = useState("");
-
-  const [inCall, setInCall] = useState(false);
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
-
+  const [status] = useState("active");
+  const [customStatus] = useState("");
+  const [inCall, setInCall] = useState(false);
   // ------------------------------------------------------------
   // Media & WebRTC
   // ------------------------------------------------------------
@@ -74,7 +71,6 @@ export default function VideoCallPage() {
   const remoteVideoRef = useRef(null);
   const streamRef = useRef(null);
   const pcRef = useRef(null);
-
   // ------------------------------------------------------------
   // Presence & Directory
   // ------------------------------------------------------------
@@ -105,14 +101,7 @@ export default function VideoCallPage() {
   // ------------------------------------------------------------
   useEffect(() => {
     // ✅ 1: Setup identity
-    socket.emit("setup", {
-      _id: myId,
-      name: myName,
-      role: myRole,
-      status,
-      customStatus,
-    });
-
+    socket.emit("register-user", myId);
     // ✅ 2: Presence stream
     socket.on("presence:list", (list) => setPresence(list || []));
 
@@ -141,8 +130,6 @@ export default function VideoCallPage() {
     socket.on("webrtc_offer", handleOffer);
     socket.on("webrtc_answer", handleAnswer);
     socket.on("webrtc_ice_candidate", handleIce);
-    socket.on("call:ended", handleCallEnd);
-
     return () => {
       socket.off("presence:list");
       socket.off("vc:chat");
@@ -154,13 +141,19 @@ export default function VideoCallPage() {
     };
     // eslint-disable-next-line
   }, []);
-
   // Keep share URL correct
   useEffect(() => {
     const base = `${window.location.origin}/video-call`;
     setShareUrl(room ? `${base}?room=${room}` : "");
   }, [room]);
-
+  useEffect(() => {
+  // Auto-start ONLY if user came via call link (caller side)
+    const isCaller = window.location.search.includes("room=");
+    if (isCaller && room && !pcRef.current) {
+      startCallWithRoom(room);
+    }
+  // eslint-disable-next-line
+  }, [room]);
   // ------------------------------------------------------------
   // WebRTC: media helpers
   // ------------------------------------------------------------
@@ -281,24 +274,26 @@ export default function VideoCallPage() {
   // ------------------------------------------------------------
   async function startCallWithRoom(r) {
     if (!r) return;
-
-    socket.emit("join_room", { room: r });
+    socket.emit("join_room", {
+      room: r,
+      user: {
+        _id: myId,
+        name: myName,
+        role: myRole,
+      },
+    });
     const pc = ensurePc();
-
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-
     socket.emit("webrtc_offer", { room: r, sdp: offer });
     setRoom(r);
     setInCall(true);
     toast("📞 Calling user...");
   }
-
   function endCall() {
     if (room) socket.emit("call_end", { room });
     teardownCall();
   }
-
   // ------------------------------------------------------------
   // Chat
   // ------------------------------------------------------------
@@ -587,21 +582,27 @@ export default function VideoCallPage() {
                   {/* Call button */}
                   {String(p.userId) !== String(myId) && (
                     <button
-                      className="thin-btn"
-                      onClick={() => {
-                        const r = `${myId}_${p.userId}`;
-                        startCallWithRoom(r);
-                        toast(`📞 Calling ${p.name}`);
-                      }}
+                    className="thin-btn"
+                    onClick={() => {
+                    const roomId = `${myId}_${p.userId}`;
+                    // 🔔 Notify receiver
+                    socket.emit("call-user", {
+                      toUserId: p.userId,
+                      fromUser: myId,
+                      roomId,
+                    });
+                    // Caller joins room immediately
+                    startCallWithRoom(roomId);
+                    toast(`📞 Calling ${p.name}`);
+                    }}
                     >
-                      Call
+                    Call
                     </button>
                   )}
                 </div>
               ))}
             </div>
           </div>
-
           {/* RIGHT: USER DIRECTORY */}
           <div className="panel directory-panel">
             <div className="panel-title">CareConnect Users</div>

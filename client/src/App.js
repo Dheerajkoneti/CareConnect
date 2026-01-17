@@ -1,7 +1,6 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
-import socket from "./utils/socket";
 
 // 🔔 GLOBAL INCOMING CALL LISTENER
 import IncomingCallListener from "./components/IncomingCallListener";
@@ -32,24 +31,13 @@ import NotificationsPage from "./pages/NotificationsPage";
 import CallHistoryPage from "./pages/CallHistoryPage";
 
 function App() {
-
-  // 🌍 REGISTER USER WITH SOCKET (CRITICAL)
-  useEffect(() => {
-    const userId = localStorage.getItem("userId");
-    if (userId) {
-      socket.emit("register-user", userId);
-      console.log("🌍 GLOBAL socket registered:", userId);
-    }
-  }, []);
-
   return (
     <ThemeProvider>
 
-      {/* 🔔 MUST BE GLOBAL */}
+      {/* 🔔 GLOBAL CALL LISTENER (ONLY ONCE) */}
       <IncomingCallListener />
 
       <Routes>
-
         <Route path="/" element={<AuthChecker />} />
         <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
@@ -76,14 +64,13 @@ function App() {
 
         {/* 📞 CALLS */}
         <Route path="/video-call/:roomId" element={<VideoCallPage />} />
-        <Route path="/voice-call" element={<VoiceCallPage />} />
         <Route path="/video-call" element={<VideoCallPage />} />
+        <Route path="/voice-call" element={<VoiceCallPage />} />
 
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/call-history" element={<CallHistoryPage />} />
 
         <Route path="*" element={<h1>404 Not Found</h1>} />
-
       </Routes>
     </ThemeProvider>
   );
