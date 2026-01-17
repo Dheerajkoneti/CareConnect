@@ -7,9 +7,15 @@ const SOCKET_URL =
 const socket = io(SOCKET_URL, {
   path: "/socket.io",
   transports: ["websocket"],
+
+  // 🔥 CRITICAL FOR STABLE CALLS
+  autoConnect: true,
   reconnection: true,
-  reconnectionAttempts: 10,
-  reconnectionDelay: 1000,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 2000,
+
+  // 🔥 ENSURE SINGLE SOCKET
+  forceNew: false,
 });
 
 export default socket;
