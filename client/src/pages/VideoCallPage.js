@@ -335,6 +335,12 @@ async function startCallWithRoom(r) {
     const next = mode === "environment" ? "user" : "environment";
     await startLocalMedia(next);
   }
+  function endCall() {
+    if (room) {
+      socket.emit("call_end", { room });
+    }
+    teardownCall();
+  }
   function teardownCall() {
     setInCall(false);
     if (pcRef.current) {
