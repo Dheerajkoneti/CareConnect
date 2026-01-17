@@ -6,34 +6,24 @@ export default function IncomingCallListener() {
   const ringtoneRef = useRef(null);
 
   useEffect(() => {
-    const userId = localStorage.getItem("userId");
-    if (userId) {
-      socket.emit("register-user", userId);
-    }
-
     socket.on("incoming-call", (data) => {
-      console.log("📞 Incoming call:", data);
       setIncomingCall(data);
       playRingtone();
     });
-
     socket.on("call-rejected", () => {
       stopRingtone();
       setIncomingCall(null);
     });
-
     socket.on("call-accepted", ({ roomId }) => {
       stopRingtone();
       window.location.href = `/video-call?room=${roomId}`;
     });
-
     return () => {
       socket.off("incoming-call");
       socket.off("call-rejected");
       socket.off("call-accepted");
     };
   }, []);
-
   const playRingtone = () => {
     ringtoneRef.current = new Audio("/call.mp3");
     ringtoneRef.current.loop = true;

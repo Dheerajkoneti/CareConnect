@@ -112,7 +112,6 @@ export default function VideoCallPage() {
   // ------------------------------------------------------------
   useEffect(() => {
     // ✅ 1: Setup identity
-    socket.emit("register-user", myId);
     // ✅ 2: Presence stream
     socket.on("presence:list", (list) => setPresence(list || []));
 
