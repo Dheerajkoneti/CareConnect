@@ -18,25 +18,44 @@ function DashboardHome() {
 
     // Security Check and Data Fetching
     useEffect(() => {
+        const user = JSON.parse(localStorage.getItem("user"));
+  // 🔐 Auth check
         if (!token) {
-            navigate('/login');
-        }
-        const fetchLatestPost = async () => {
-            try {
-                const response = await api.get("/api/community/posts");
-                setLatestPost(response.data[0] || null);
-            } catch (error) {
-                console.error("Error fetching latest post:", error);
-            }
-            setLoadingPosts(false);
-        };
-        fetchLatestPost();
-    }, [navigate, token]);
+        navigate("/login");
+        return;
+    }
 
+  // 🔌 Register socket user
+    if (user?._id) {
+        socket.emit("register-user", user._id);
+    }
+
+  // 📞 Incoming call listener
+    socket.on("incoming-call", ({ roomId, fromUser }) => {
+        navigate("/video-call", {
+            state: { roomId, fromUser, incoming: true },
+        });
+    });
+
+  // 📥 Fetch latest post
+    const fetchLatestPost = async () => {
+        try {
+            const response = await api.get("/api/community/posts");
+            setLatestPost(response.data[0] || null);
+        } catch (error) {
+            console.error("Error fetching latest post:", error);
+        } finally {
+            setLoadingPosts(false);
+        }
+    };
+    fetchLatestPost();
+    return () => {
+        socket.off("incoming-call");
+    };
+    }, [navigate, token]);
     const handleMoodRecord = () => {
         alert(`Mood recorded as ${mood}! Thank you for checking in.`);
     };
-
     const moodStatus = (m) => {
         if (m >= 4) return "Fantastic! 😊";
         if (m === 3) return "Okay 🙂";

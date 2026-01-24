@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import socket from "../utils/socket";
 import "../styles/voicecall.css";
-
+import { useCallback } from "react";
 const VoiceCall = () => {
   const [callPhone, setCallPhone] = useState("");
   const [status, setStatus] = useState("idle");

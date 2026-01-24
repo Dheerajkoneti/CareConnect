@@ -28,8 +28,6 @@ router.post("/add", protect, async (req, res) => {
     });
   }
 });
-
-
 // ✅ Get User Call Logs
 router.get("/user/:id", protect, async (req, res) => {
   try {

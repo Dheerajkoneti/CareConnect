@@ -53,11 +53,7 @@ export default function VideoCallPage() {
   // ------------------------------------------------------------
   // Identity (fallback for local)
   // ------------------------------------------------------------
-  const myId =
-    localStorage.getItem("userId") ||
-    localStorage.getItem("uid") ||
-    "user_" + Math.random().toString(36).slice(2, 6);
-
+  const myId = localStorage.getItem("userId"); // MongoDB _id ONLY
   const myName = localStorage.getItem("userName") || "You";
   const myRole = localStorage.getItem("role") || "community_member";
   // ------------------------------------------------------------
@@ -146,6 +142,7 @@ export default function VideoCallPage() {
     });
     socket.on("call-accepted", ({ roomId }) => {
       setRingingTo(null);
+      startCallWithRoom(roomId); // 🔥 CALLER CREATES OFFER NOW
       toast("✅ Call accepted");
     });
     socket.on("call-rejected", () => {
@@ -582,16 +579,15 @@ async function startCallWithRoom(r) {
             <div className="list">
               {presence.map((p) => (
                 <div key={p.socketId} className="row">
-                  <div className="avatar">{(p.name || "U")[0]}</div>
-
+                  <div className="avatar">
+                  {(directory.find(u => u._id === p.userId)?.name || "U")[0]}
+                  </div>
                   <div className="meta">
                     <div className="name">
-                      {p.name}{" "}
-                      {String(p.userId) === String(myId) && "(You)"}
+                      {directory.find(u => u._id === p.userId)?.name || "Unknown"}
+                      {String(p.userId) === String(myId) && " (You)"}
                     </div>
-
                     <div className="role">{p.role}</div>
-
                     <div className="status-line">
                       <span
                         className="dot"
@@ -615,16 +611,16 @@ async function startCallWithRoom(r) {
                     <button
                     className="thin-btn"
                     onClick={() => {
-                    const roomId = `${myId}_${p.userId}`;
-                    // 🔔 Notify receiver
-                    setRingingTo(p.name);   // OR u.name
-                    socket.emit("call-user", {
-                      toUserId: p.userId,
-                      fromUser: myId,
-                      roomId,
-                    });
-                    // Caller joins room immediately
-                    toast(`📞 Calling ${p.name}`);
+                      const roomId = `${myId}_${p.userId}`;
+                      const calleeName =
+                      directory.find(u => u._id === p.userId)?.name || "User";
+                      setRingingTo(calleeName);
+                      socket.emit("call-user", {
+                        toUserId: p.userId,
+                        fromUser: myId,
+                        roomId,
+                      });
+                      toast(`📞 Calling ${calleeName}`);
                     }}
                     >
                     Call
@@ -677,8 +673,13 @@ async function startCallWithRoom(r) {
                     className="thin-btn"
                     disabled={!presenceMap[u._id]}
                     onClick={() => {
-                      const r = `${myId}_${u._id}`;
-                      startCallWithRoom(r);
+                      const roomId = `${myId}_${u._id}`;
+                      setRingingTo(u.name);
+                      socket.emit("call-user", {
+                        toUserId: u._id,
+                        fromUser: myId,
+                        roomId,
+                      });
                       toast(`📞 Calling ${u.name}`);
                     }}
                   >

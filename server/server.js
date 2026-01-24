@@ -175,15 +175,19 @@ postEvents(io);
 function broadcastPresence() {
   const presence = [];
   for (const [userId, sockets] of onlineUsers.entries()) {
+    const socketId = [...sockets][0];
+    const socket = io.sockets.sockets.get(socketId);
     presence.push({
-      userId,
-      sockets: sockets.size,
+      userId,                       // ✅ MongoDB _id
+      name: socket?.userMeta?.name || "User",
+      role: socket?.userMeta?.role || "member",
       status: "active",
+      socketId,
     });
   }
-
   io.emit("presence:list", presence);
 }
+
 // ===============================
 // ✅ ONLINE USERS (MULTI SOCKET SAFE)
 // ===============================
@@ -214,22 +218,19 @@ io.on("connection", (socket) => {
   // 📞 CALL USER
   // ===============================
   socket.on("call-user", ({ toUserId, fromUser, roomId }) => {
-  console.log("📞 CALL:", fromUser, "→", toUserId);
-
-  const sockets = onlineUsers.get(toUserId);
-
-  if (!sockets || sockets.size === 0) {
-    console.log("❌ RECEIVER OFFLINE:", toUserId);
-    return;
-  }
-  for (const sid of sockets) {
-    io.to(sid).emit("incoming-call", {
-      fromUser,
-      roomId,
-    });
-  }
-  console.log("🚀 incoming-call sent");
-});
+    console.log("📞 CALL:", fromUser, "→", toUserId);
+    const sockets = onlineUsers.get(toUserId);
+    if (!sockets || sockets.size === 0) return;
+    const callerName = socket.userMeta?.name || "User";
+    for (const sid of sockets) {
+      io.to(sid).emit("incoming-call", {
+        fromUser,          // MongoDB _id
+        fromName: callerName, // ✅ ADD THIS
+        roomId,
+      });
+    }
+    console.log("🚀 incoming-call sent");
+  });
 //=============================
   // ✅ ACCEPT CALL
   // ===============================

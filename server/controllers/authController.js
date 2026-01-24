@@ -11,8 +11,11 @@ const User = require("../models/User"); // ✅ Correct model import
 // 🟢 REGISTER USER
 // =========================
 exports.register = async (req, res) => {
+  console.log("🟢 REGISTER HIT", req.body); // ✅ DEBUG
+
   try {
-    const { fullName, email, password, role } = req.body;
+    const { fullName, name, email, password, role } = req.body;
+    const finalName = fullName || name;
 
     const existing = await User.findOne({ email });
     if (existing) {
@@ -25,7 +28,7 @@ exports.register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = new User({
-      fullName,
+      fullName: finalName, // ✅ FIXED
       email,
       password: hashedPassword,
       role: role || "community_member",
@@ -34,15 +37,17 @@ exports.register = async (req, res) => {
     await newUser.save();
     console.log(`✅ Registered new user: ${email}`);
 
-    res
-      .status(201)
-      .json({ message: "Registration successful! You can now log in." });
+    res.status(201).json({
+      message: "Registration successful! You can now log in.",
+    });
   } catch (err) {
     console.error("REGISTER ERROR:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
   }
 };
-
 // =========================
 // 🟢 LOGIN USER
 // =========================

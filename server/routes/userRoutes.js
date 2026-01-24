@@ -35,31 +35,28 @@ const authMiddleware = (req, res, next) => {
 /* ==========================================================
    ✅ MAIN NEW ROUTE — Get ALL users (for VideoCall directory)
    ========================================================== */
-router.get("/all", async (req, res) => {
+router.get("/all", authMiddleware, async (req, res) => {
   try {
     const users = await User.find(
-  {},
-  {
-    fullName: 1,
-    name: 1,
-    email: 1,
-    phone: 1,          // ✅ REQUIRED FOR CALLS
-    role: 1,
-    status: 1,
-    customStatus: 1,
-    lastActive: 1,
-    profilePic: 1,
-  }
-).lean();
-
+      {},
+      {
+        fullName: 1,
+        name: 1,
+        email: 1,
+        phone: 1,
+        role: 1,
+        status: 1,
+        customStatus: 1,
+        lastActive: 1,
+        profilePic: 1,
+      }
+    ).lean();
 
     res.json(users || []);
   } catch (err) {
-    console.error("❌ /api/users/all failed:", err);
     res.status(500).json({ message: err.message });
   }
 });
-
 /* ==========================================================
    ✅ Update Live Status (Video Call)
    ========================================================== */
@@ -104,8 +101,10 @@ router.put(
   upload.single("profilePic"),
   async (req, res) => {
     try {
-      const { fullName, bio } = req.body;
+      const { fullName, bio, phone } = req.body;
+
       const updateData = { fullName, bio };
+      if (phone) updateData.phone = phone;
       if (req.file) updateData.profilePic = `/uploads/${req.file.filename}`;
 
       const updatedUser = await User.findByIdAndUpdate(
@@ -116,11 +115,10 @@ router.put(
 
       res.json({ message: "Profile updated successfully", user: updatedUser });
     } catch (err) {
-      res.status(500).json({ message: "Error updating profile", error: err.message });
+      res.status(500).json({ message: err.message });
     }
   }
 );
-
 // ✅ Get user's posts
 router.get("/:id/posts", authMiddleware, async (req, res) => {
   try {

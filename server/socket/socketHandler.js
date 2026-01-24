@@ -170,26 +170,26 @@ module.exports = function socketHandler(io) {
 
     // On disconnect cleanup
     socket.on("disconnect", async () => {
-  console.log(`⚠️ Socket disconnected: ${socket.id}`);
+      console.log(`⚠️ Socket disconnected: ${socket.id}`);
 
-  // Volunteer cleanup (existing)
-  const volId = socketToVolunteer.get(socket.id);
-  if (volId) {
-    volunteerSockets.delete(volId);
-    socketToVolunteer.delete(socket.id);
-    try {
-      await Volunteer.findByIdAndUpdate(volId, { status: "offline", socketId: null });
-    } catch (e) {}
-    io.emit("status_updated", { volunteerId: volId, status: "offline" });
-  }
+      // Volunteer cleanup (existing)
+      const volId = socketToVolunteer.get(socket.id);
+      if (volId) {
+        volunteerSockets.delete(volId);
+        socketToVolunteer.delete(socket.id);
+        try {
+          await Volunteer.findByIdAndUpdate(volId, { status: "offline", socketId: null });
+        } catch (e) {}
+        io.emit("status_updated", { volunteerId: volId, status: "offline" });
+      }
 
-  // 👤 User cleanup (NEW)
-  const userId = socketToUser.get(socket.id);
-  if (userId) {
-    userSockets.delete(userId);
-    socketToUser.delete(socket.id);
-    console.log("👤 User removed:", userId);
-  }
-});
+      // 👤 User cleanup (NEW)
+      const userId = socketToUser.get(socket.id);
+      if (userId) {
+        userSockets.delete(userId);
+        socketToUser.delete(socket.id);
+        console.log("👤 User removed:", userId);
+      }
+    });
   });
 };
