@@ -136,9 +136,9 @@ export default function VideoCallPage() {
 
     // ✅ 4: Start camera immediately
     startLocalMedia();
-    socket.on("incoming-call", ({ fromUser, roomId }) => {
-      setIncomingCall({ fromUser, roomId });
-      toast("🔔 Incoming call...");
+    socket.on("incoming-call", ({ fromUser, fromName, roomId }) => {
+      setIncomingCall({ fromUser, fromName, roomId });
+      toast(`🔔 Incoming call from ${fromName}`);
     });
     socket.on("call-accepted", ({ roomId }) => {
       setRingingTo(null);
@@ -240,9 +240,13 @@ export default function VideoCallPage() {
     };
     pc.ontrack = (e) => {
       const [remoteStream] = e.streams;
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
-      }
+      console.log("🎥 Remote stream received", remoteStream);
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current
+      .play()
+      .catch(() => console.log("Autoplay blocked"));
+    }
     };
     pc.onconnectionstatechange = () => {
       if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
@@ -254,15 +258,26 @@ export default function VideoCallPage() {
   }
   async function handleOffer({ room: r, sdp }) {
     if (r !== room) return;
+    // 1️⃣ ENSURE MEDIA
     if (!streamRef.current) {
-      await startLocalMedia(); // 🔥 REQUIRED
+      await startLocalMedia();
     }
+    // 2️⃣ JOIN ROOM
     socket.emit("join_room", {
       room: r,
       user: { _id: myId, name: myName, role: myRole },
     });
-    const pc = ensurePc();
-    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    // 3️⃣ CREATE PC
+    const pc = ensurePC();
+    // 🔴 CRITICAL FIX: ADD TRACKS HERE (NOT only in ensurePC)
+    streamRef.current.getTracks().forEach(track => {
+      pc.addTrack(track, streamRef.current);
+    });
+    // 4️⃣ APPLY OFFER
+    await pc.setRemoteDescription(
+      new RTCSessionDescription(sdp)
+    );
+    // 5️⃣ ANSWER
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     socket.emit("webrtc_answer", { room: r, sdp: answer });
@@ -298,7 +313,6 @@ export default function VideoCallPage() {
   startCallWithRoom(incomingCall.roomId);
   setIncomingCall(null);
 }
-
 function rejectCall() {
   if (!incomingCall) return;
 
@@ -312,28 +326,41 @@ function rejectCall() {
   // ------------------------------------------------------------
 async function startCallWithRoom(r) {
   if (!r || pcRef.current) return;
-    setRoom(r);
-    if (!streamRef.current) {
-      await startLocalMedia(); // ✅ ensure media exists
-    }
-    socket.emit("join_room", {
-      room: r,
-      user: {
-        _id: myId,
-        name: myName,
-        role: myRole,
-      },
-    });
-    const pc = ensurePc();
-    const offer = await pc.createOffer({
-      offerToReceiveAudio: true,
-      offerToReceiveVideo: true,
-    });
-    await pc.setLocalDescription(offer);
-    socket.emit("webrtc_offer", { room: r, sdp: offer });
-    setInCall(true);
-    toast("📞 Calling user...");
+
+  setRoom(r);
+
+  if (!streamRef.current) {
+    await startLocalMedia(); // ✅ ensure media exists
   }
+
+  socket.emit("join_room", {
+    room: r,
+    user: {
+      _id: myId,
+      name: myName,
+      role: myRole,
+    },
+  });
+
+  const pc = ensurePc();
+
+  // 🔥🔥🔥 THIS WAS MISSING 🔥🔥🔥
+  streamRef.current.getTracks().forEach((track) => {
+    pc.addTrack(track, streamRef.current);
+  });
+
+  const offer = await pc.createOffer({
+    offerToReceiveAudio: true,
+    offerToReceiveVideo: true,
+  });
+
+  await pc.setLocalDescription(offer);
+
+  socket.emit("webrtc_offer", { room: r, sdp: offer });
+
+  setInCall(true);
+  toast("📞 Calling user...");
+}
   // ------------------------------------------------------------
   // Chat
   // ------------------------------------------------------------
@@ -696,7 +723,7 @@ async function startCallWithRoom(r) {
         <div className="incoming-call-modal">
           <div className="modal-box">
             <h3>📞 Incoming Call</h3>
-            <p>{incomingCall.fromUser} is calling you</p>
+            <p>{incomingCall.fromName} is calling you</p>
             <div className="modal-actions">
               <button className="accept" onClick={acceptCall}>
                 Accept
