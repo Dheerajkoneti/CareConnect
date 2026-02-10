@@ -127,10 +127,8 @@ app.use("/api/community-chat", communityChatRoutes);
 app.use("/api", messageRoutes);
 app.use("/api/community", communityFeedRoutes);
 app.use("/api/tasks", taskRoutes);
-app.use("/api/calls", callRoutes);
 app.use("/api/mood", moodRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/calls", require("./routes/callRoutes"));
 
 // ------------------------------------------------------
 // ✅ PUBLIC USER LIST
@@ -195,9 +193,6 @@ function broadcastPresence() {
 const onlineUsers = new Map();
 io.on("connection", (socket) => {
   console.log("🔗 Socket connected:", socket.id);
-  socket.on("join_room", ({ room }) => {
-    socket.join(room);
-  });
   // ✅ REGISTER USER (CRITICAL)
   socket.on("register-user", async (userId) => {
     socket.userId = userId;
@@ -214,6 +209,48 @@ io.on("connection", (socket) => {
     console.log("✅ REGISTERED:", userId, socket.id);
     broadcastPresence();
   });
+  // ===============================
+  // 🎥 WEBRTC SIGNALING (CRITICAL)
+  // ===============================
+
+  // JOIN ROOM (already present, keep it)
+  socket.on("join_room", ({ room }) => {
+    socket.join(room);
+    console.log("👥 Joined room:", room, socket.id);
+  });
+
+  // OFFER
+  socket.on("webrtc_offer", ({ room, sdp }) => {
+    console.log("📨 OFFER → room:", room);
+    socket.to(room).emit("webrtc_offer", {
+      room,
+      sdp,
+    });
+  });
+
+  // ANSWER
+  socket.on("webrtc_answer", ({ room, sdp }) => {
+    console.log("📨 ANSWER → room:", room);
+    socket.to(room).emit("webrtc_answer", {
+      room,
+      sdp,
+    });
+  });
+
+  // ICE CANDIDATE
+  socket.on("webrtc_ice_candidate", ({ room, candidate }) => {
+    console.log("🧊 ICE → room:", room);
+    socket.to(room).emit("webrtc_ice_candidate", {
+      room,
+      candidate,
+    });
+  });
+  // CALL END
+  socket.on("call_end", ({ room }) => {
+    console.log("❌ CALL ENDED:", room);
+    socket.to(room).emit("call:ended");
+  });
+
   // ===============================
   // 📞 CALL USER
   // ===============================
