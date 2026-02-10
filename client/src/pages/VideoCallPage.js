@@ -99,13 +99,11 @@ export default function VideoCallPage() {
         String(u.email || "").toLowerCase().includes(q)
     );
   }, [directory, dirQuery]);
-
   // ------------------------------------------------------------
   // Chat state
   // ------------------------------------------------------------
   const [chat, setChat] = useState([]);
   const [chatInput, setChatInput] = useState("");
-
   // ------------------------------------------------------------
   // INITIAL SETUP
   // ------------------------------------------------------------
@@ -155,7 +153,6 @@ export default function VideoCallPage() {
         setChat((p) => [...p, msg]);
       }
     });
-
     // ✅ 6: WebRTC handlers
     socket.on("webrtc_offer", handleOffer);
     socket.on("webrtc_answer", handleAnswer);
@@ -223,16 +220,13 @@ export default function VideoCallPage() {
   // ------------------------------------------------------------
  function ensurePc() {
   if (pcRef.current) return pcRef.current;
-
   const pc = new RTCPeerConnection(pcConfig);
-
   // ✅ add tracks AFTER pc is created
   if (streamRef.current) {
     streamRef.current.getTracks().forEach(track => {
       pc.addTrack(track, streamRef.current);
     });
   }
-
   pc.onicecandidate = (e) => {
     if (e.candidate && room) {
       socket.emit("webrtc_ice_candidate", {
@@ -241,7 +235,6 @@ export default function VideoCallPage() {
       });
     }
   };
-
   pc.ontrack = (e) => {
     console.log("🎥 ontrack fired", e.streams);
     const [remoteStream] = e.streams;
@@ -261,13 +254,18 @@ export default function VideoCallPage() {
   return pc;
 }
 async function handleOffer({ room: r, sdp }) {
-  if (!room) {
-    setRoom(r);
-  }
+  console.log("📨 Offer received for room:", r);
 
+  // Always sync room
+  setRoom(r);
+
+  // Ensure media FIRST
   if (!streamRef.current) {
     await startLocalMedia();
   }
+
+  // 🔥 CRITICAL: create PC BEFORE join + SDP
+  const pc = ensurePc();
 
   socket.emit("join_room", {
     room: r,
@@ -278,11 +276,7 @@ async function handleOffer({ room: r, sdp }) {
     },
   });
 
-  const pc = ensurePc(); // tracks already added here ✅
-
-  await pc.setRemoteDescription(
-    new RTCSessionDescription(sdp)
-  );
+  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
 
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
@@ -295,6 +289,21 @@ async function handleOffer({ room: r, sdp }) {
   setInCall(true);
   toast("✅ Call connected");
 }
+async function handleAnswer({ room: r, sdp }) {
+  if (r !== room) return;
+
+  if (!pcRef.current) {
+    console.warn("PC not ready for answer");
+    return;
+  }
+
+  await pcRef.current.setRemoteDescription(
+    new RTCSessionDescription(sdp)
+  );
+
+  console.log("✅ Remote answer set");
+}
+
   async function handleIce(data) {
     if (data.room !== room) return;
     try {
@@ -470,6 +479,7 @@ async function startCallWithRoom(r) {
               ref={remoteVideoRef}
               autoPlay
               playsInline
+              muted 
               className="video-box"
             />
             <div className="video-label">Peer</div>
