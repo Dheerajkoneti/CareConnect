@@ -74,7 +74,7 @@ export default function VideoCallPage() {
   const [incomingCall, setIncomingCall] = useState(null); // incoming\
   const [inCall, setInCall] = useState(false);
   const iceQueueRef = useRef([]);
-
+  const pcRoomRef = useRef(null);
   // ------------------------------------------------------------
   // Media & WebRTC
   // ------------------------------------------------------------
@@ -220,79 +220,185 @@ export default function VideoCallPage() {
   // ------------------------------------------------------------
   // WebRTC: PeerConnection
   // ------------------------------------------------------------
- function ensurePc(activeRoom) {
-  // Reuse existing PeerConnection
-  if (pcRef.current) return pcRef.current;
+  function ensurePc(activeRoom) {
+    if (pcRef.current && pcRoomRef.current === activeRoom) {
+      return pcRef.current;
+    }
 
-  console.log("🧩 Creating new RTCPeerConnection for room:", activeRoom);
+    // ❌ If room changed, destroy old PC
+    if (pcRef.current && pcRoomRef.current !== activeRoom) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
 
-  const pc = new RTCPeerConnection(pcConfig);
+    console.log("🧩 Creating RTCPeerConnection for room:", activeRoom);
 
-  // ✅ Add local tracks ONCE
-  if (streamRef.current) {
-    streamRef.current.getTracks().forEach((track) => {
-      pc.addTrack(track, streamRef.current);
-    });
-  }
+    const pc = new RTCPeerConnection(pcConfig);
+    pcRoomRef.current = activeRoom;
 
-  // ✅ SEND ICE CANDIDATES (room-safe)
-  pc.onicecandidate = (e) => {
-    if (!e.candidate || !activeRoom) return;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track =>
+        pc.addTrack(track, streamRef.current)
+      );
+    }
 
-    console.log("🧊 ICE OUT:", e.candidate.candidate);
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        socket.emit("webrtc_ice_candidate", {
+          room: activeRoom,
+          candidate: e.candidate,
+        });
+      }
+    };
 
-    socket.emit("webrtc_ice_candidate", {
-      room: activeRoom,
-      candidate: e.candidate,
-    });
-  };
-
-  // ✅ RECEIVE REMOTE MEDIA
-  pc.ontrack = (event) => {
-    console.log("🔥 REMOTE TRACK RECEIVED");
+    pc.ontrack = (event) => {
+    console.log("🔥 REMOTE TRACK:", event.track.kind);
 
     if (!remoteVideoRef.current) return;
 
     const remoteStream = event.streams[0];
-    remoteVideoRef.current.srcObject = remoteStream;
 
-    remoteVideoRef.current
-      .play()
-      .catch((err) => console.error("❌ Autoplay failed", err));
-  };
+    // ✅ SET STREAM ONCE
+    if (remoteVideoRef.current.srcObject !== remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
 
-  // ✅ CONNECTION STATE DEBUG
-  pc.onconnectionstatechange = () => {
-    console.log("🔗 PC state:", pc.connectionState);
-
-    if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
-      console.warn("⚠️ Connection lost");
-      teardownCall();
+      // ✅ FORCE PLAY (REQUIRED)
+      remoteVideoRef.current
+        .play()
+        .then(() => console.log("▶️ Remote video playing"))
+        .catch(err => console.error("❌ Autoplay blocked:", err));
     }
   };
+    pc.onconnectionstatechange = () => {
+      console.log("🔗 PC:", pc.connectionState);
+      if (pc.connectionState === "failed") {
+        teardownCall();
+      }
+    };
 
-  // ✅ ICE STATE DEBUG (VERY IMPORTANT)
-  pc.oniceconnectionstatechange = () => {
-    console.log("🧊 ICE state:", pc.iceConnectionState);
-  };
+    pcRef.current = pc;
+    return pc;
+  }
+  async function handleOffer({ room: r, sdp }) {
+    console.log("📨 Offer received for room:", r);
 
-  pcRef.current = pc;
-  return pc;
-}
+    // Always sync room
+    setRoom(r);
 
-async function handleOffer({ room: r, sdp }) {
-  console.log("📨 Offer received for room:", r);
+    // Ensure media FIRST
+    if (!streamRef.current) {
+      await startLocalMedia();
+    }
 
-  // Always sync room
+    // 🔥 CRITICAL: create PC BEFORE join + SDP
+    const pc = ensurePc(r);
+    socket.emit("join_room", {
+      room: r,
+      user: {
+        _id: myId,
+        name: myName,
+        role: myRole,
+      },
+    });
+    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      // ✅ APPLY QUEUED ICE
+    iceQueueRef.current.forEach(c =>
+      pc.addIceCandidate(new RTCIceCandidate(c))
+    );
+    iceQueueRef.current = [];
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    socket.emit("webrtc_answer", {
+      room: r,
+      sdp: answer,
+    });
+
+    setInCall(true);
+    toast("✅ Call connected");
+  }
+  async function handleAnswer({ room: r, sdp }) {
+    if (r !== room) return;
+
+    if (!pcRef.current) {
+      console.warn("PC not ready for answer");
+      return;
+    }
+
+    await pcRef.current.setRemoteDescription(
+      new RTCSessionDescription(sdp)
+    );
+      // ✅ APPLY QUEUED ICE
+    iceQueueRef.current.forEach(c =>
+      pcRef.current.addIceCandidate(new RTCIceCandidate(c))
+    );
+    iceQueueRef.current = [];
+
+
+    console.log("✅ Remote answer set");
+  }
+  async function handleIce(data) {
+    console.log("🧊 ICE IN:", data?.candidate?.candidate);
+
+    if (!pcRef.current || !pcRef.current.remoteDescription) {
+      console.warn("⏳ ICE queued (remoteDescription not ready)");
+      iceQueueRef.current.push(data.candidate);
+      return;
+    }
+
+    try {
+      await pcRef.current.addIceCandidate(
+        new RTCIceCandidate(data.candidate)
+      );
+    } catch (err) {
+      console.error("❌ ICE error", err);
+    }
+  }
+  function handleCallEnd() {
+    toast("⭕ Call ended");
+    teardownCall();
+  }
+  function acceptCall() {
+    if (!incomingCall) return;
+
+    setRoom(incomingCall.roomId);
+
+    socket.emit("join_room", {
+      room: incomingCall.roomId,
+      user: { _id: myId, name: myName, role: myRole },
+    });
+
+    socket.emit("call-accepted", {
+      toUserId: incomingCall.fromUser,
+      roomId: incomingCall.roomId,
+    });
+
+    setIncomingCall(null);
+  }
+  function rejectCall() {
+    if (!incomingCall) return;
+
+    socket.emit("call-rejected", {
+      toUserId: incomingCall.fromUser,
+    });
+    setIncomingCall(null);
+  }
+  // ------------------------------------------------------------
+  // WebRTC Start Call
+  // ------------------------------------------------------------
+  async function startCallWithRoom(r) {
+  if (!r) return;
+
+  console.log("📞 Starting call for room:", r);
+
   setRoom(r);
 
-  // Ensure media FIRST
+  // ✅ Ensure local media exists FIRST
   if (!streamRef.current) {
     await startLocalMedia();
   }
 
-  // 🔥 CRITICAL: create PC BEFORE join + SDP
-  const pc = ensurePc(r);
+  // ✅ JOIN ROOM FIRST (VERY IMPORTANT)
   socket.emit("join_room", {
     room: r,
     user: {
@@ -302,111 +408,14 @@ async function handleOffer({ room: r, sdp }) {
     },
   });
 
-  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-    // ✅ APPLY QUEUED ICE
-  iceQueueRef.current.forEach(c =>
-    pc.addIceCandidate(new RTCIceCandidate(c))
-  );
-  iceQueueRef.current = [];
-  const answer = await pc.createAnswer();
-  await pc.setLocalDescription(answer);
+  // ✅ Small delay to ensure socket room sync
+  await new Promise((res) => setTimeout(res, 100));
 
-  socket.emit("webrtc_answer", {
-    room: r,
-    sdp: answer,
-  });
-
-  setInCall(true);
-  toast("✅ Call connected");
-}
-async function handleAnswer({ room: r, sdp }) {
-  if (r !== room) return;
-
-  if (!pcRef.current) {
-    console.warn("PC not ready for answer");
-    return;
-  }
-
-  await pcRef.current.setRemoteDescription(
-    new RTCSessionDescription(sdp)
-  );
-    // ✅ APPLY QUEUED ICE
-  iceQueueRef.current.forEach(c =>
-    pcRef.current.addIceCandidate(new RTCIceCandidate(c))
-  );
-  iceQueueRef.current = [];
-
-
-  console.log("✅ Remote answer set");
-}
-async function handleIce(data) {
-  console.log("🧊 ICE IN:", data?.candidate?.candidate);
-
-  if (!pcRef.current || !pcRef.current.remoteDescription) {
-    console.warn("⏳ ICE queued (remoteDescription not ready)");
-    iceQueueRef.current.push(data.candidate);
-    return;
-  }
-
-  try {
-    await pcRef.current.addIceCandidate(
-      new RTCIceCandidate(data.candidate)
-    );
-  } catch (err) {
-    console.error("❌ ICE error", err);
-  }
-}
-function handleCallEnd() {
-  toast("⭕ Call ended");
-  teardownCall();
-}
-function acceptCall() {
-  if (!incomingCall) return;
-
-  setRoom(incomingCall.roomId);
-
-  socket.emit("join_room", {
-    room: incomingCall.roomId,
-    user: { _id: myId, name: myName, role: myRole },
-  });
-
-  socket.emit("call-accepted", {
-    toUserId: incomingCall.fromUser,
-    roomId: incomingCall.roomId,
-  });
-
-  setIncomingCall(null);
-}
-function rejectCall() {
-  if (!incomingCall) return;
-
-  socket.emit("call-rejected", {
-    toUserId: incomingCall.fromUser,
-  });
-  setIncomingCall(null);
-}
-  // ------------------------------------------------------------
-  // WebRTC Start Call
-  // ------------------------------------------------------------
-async function startCallWithRoom(r) {
-  if (!r || pcRef.current) return;
-
-  setRoom(r);
-
-  if (!streamRef.current) {
-    await startLocalMedia(); // ✅ ensure media exists
-  }
-
-  socket.emit("join_room", {
-    room: r,
-    user: {
-      _id: myId,
-      name: myName,
-      role: myRole,
-    },
-  });
-
+  // ✅ Create / reuse PeerConnection AFTER join
   const pc = ensurePc(r);
+
+  console.log("📡 Creating WebRTC offer...");
+
   const offer = await pc.createOffer({
     offerToReceiveAudio: true,
     offerToReceiveVideo: true,
@@ -414,11 +423,17 @@ async function startCallWithRoom(r) {
 
   await pc.setLocalDescription(offer);
 
-  socket.emit("webrtc_offer", { room: r, sdp: offer });
+  console.log("📨 Sending offer to room:", r);
+
+  socket.emit("webrtc_offer", {
+    room: r,
+    sdp: offer,
+  });
 
   setInCall(true);
   toast("📞 Calling user...");
 }
+
   // ------------------------------------------------------------
   // Chat
   // ------------------------------------------------------------
@@ -523,7 +538,7 @@ async function startCallWithRoom(r) {
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              muted
+            
               className="video-box"
             />
             <div className="video-label">Peer</div>

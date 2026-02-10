@@ -4,18 +4,11 @@ const SOCKET_URL =
   process.env.REACT_APP_SOCKET_URL ||
   "https://careconnect-dini.onrender.com";
 
-const socket = io(SOCKET_URL, {
-  path: "/socket.io",
-  transports: ["websocket"],
-
-  // 🔥 CRITICAL FOR STABLE CALLS
-  autoConnect: true,
+const socket = io("https://careconnect-dini.onrender.com", {
+  withCredentials: true,
+  transports: ["polling", "websocket"],
   reconnection: true,
   reconnectionAttempts: Infinity,
-  reconnectionDelay: 2000,
-
-  // 🔥 ENSURE SINGLE SOCKET
-  forceNew: false,
+  reconnectionDelay: 1000,
 });
-
 export default socket;

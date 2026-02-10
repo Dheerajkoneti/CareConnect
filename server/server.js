@@ -166,7 +166,7 @@ const io = new Server(server, {
     ],
     credentials: true,
   },
-  transports: ["websocket"],
+  transports: ["polling", "websocket"], // ✅ IMPORTANT
 });
 const postEvents = require("./socket/postEvents");
 postEvents(io);
