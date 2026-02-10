@@ -6,7 +6,7 @@ const SOCKET_URL =
 
 const socket = io(SOCKET_URL, {
   path: "/socket.io",
-    transports: ["polling", "websocket"],
+  transports: ["websocket"],
 
   // 🔥 CRITICAL FOR STABLE CALLS
   autoConnect: true,

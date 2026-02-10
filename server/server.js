@@ -163,11 +163,10 @@ const io = new Server(server, {
     origin: [
       "http://localhost:3000",
       "https://careconnect-dini.vercel.app",
-      "https://care-connect-gilt.vercel.app",
     ],
     credentials: true,
   },
-  transports: ["polling", "websocket"],
+  transports: ["websocket"],
 });
 const postEvents = require("./socket/postEvents");
 postEvents(io);
