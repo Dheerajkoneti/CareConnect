@@ -73,6 +73,8 @@ export default function VideoCallPage() {
   const [ringingTo, setRingingTo] = useState(null);   // outgoing
   const [incomingCall, setIncomingCall] = useState(null); // incoming\
   const [inCall, setInCall] = useState(false);
+  const iceQueueRef = useRef([]);
+
   // ------------------------------------------------------------
   // Media & WebRTC
   // ------------------------------------------------------------
@@ -218,41 +220,66 @@ export default function VideoCallPage() {
   // ------------------------------------------------------------
   // WebRTC: PeerConnection
   // ------------------------------------------------------------
- function ensurePc() {
+ function ensurePc(activeRoom) {
+  // Reuse existing PeerConnection
   if (pcRef.current) return pcRef.current;
+
+  console.log("🧩 Creating new RTCPeerConnection for room:", activeRoom);
+
   const pc = new RTCPeerConnection(pcConfig);
-  // ✅ add tracks AFTER pc is created
+
+  // ✅ Add local tracks ONCE
   if (streamRef.current) {
-    streamRef.current.getTracks().forEach(track => {
+    streamRef.current.getTracks().forEach((track) => {
       pc.addTrack(track, streamRef.current);
     });
   }
+
+  // ✅ SEND ICE CANDIDATES (room-safe)
   pc.onicecandidate = (e) => {
-    if (e.candidate && room) {
-      socket.emit("webrtc_ice_candidate", {
-        room,
-        candidate: e.candidate,
-      });
-    }
+    if (!e.candidate || !activeRoom) return;
+
+    console.log("🧊 ICE OUT:", e.candidate.candidate);
+
+    socket.emit("webrtc_ice_candidate", {
+      room: activeRoom,
+      candidate: e.candidate,
+    });
   };
-  pc.ontrack = (e) => {
-    console.log("🎥 ontrack fired", e.streams);
-    const [remoteStream] = e.streams;
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteStream;
+
+  // ✅ RECEIVE REMOTE MEDIA
+  pc.ontrack = (event) => {
+    console.log("🔥 REMOTE TRACK RECEIVED");
+
+    if (!remoteVideoRef.current) return;
+
+    const remoteStream = event.streams[0];
+    remoteVideoRef.current.srcObject = remoteStream;
+
+    remoteVideoRef.current
+      .play()
+      .catch((err) => console.error("❌ Autoplay failed", err));
+  };
+
+  // ✅ CONNECTION STATE DEBUG
+  pc.onconnectionstatechange = () => {
+    console.log("🔗 PC state:", pc.connectionState);
+
+    if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
+      console.warn("⚠️ Connection lost");
+      teardownCall();
     }
   };
 
-  pc.onconnectionstatechange = () => {
-    console.log("🔗 Connection state:", pc.connectionState);
-    if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
-      teardownCall();
-    }
+  // ✅ ICE STATE DEBUG (VERY IMPORTANT)
+  pc.oniceconnectionstatechange = () => {
+    console.log("🧊 ICE state:", pc.iceConnectionState);
   };
 
   pcRef.current = pc;
   return pc;
 }
+
 async function handleOffer({ room: r, sdp }) {
   console.log("📨 Offer received for room:", r);
 
@@ -265,8 +292,7 @@ async function handleOffer({ room: r, sdp }) {
   }
 
   // 🔥 CRITICAL: create PC BEFORE join + SDP
-  const pc = ensurePc();
-
+  const pc = ensurePc(r);
   socket.emit("join_room", {
     room: r,
     user: {
@@ -277,7 +303,11 @@ async function handleOffer({ room: r, sdp }) {
   });
 
   await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-
+    // ✅ APPLY QUEUED ICE
+  iceQueueRef.current.forEach(c =>
+    pc.addIceCandidate(new RTCIceCandidate(c))
+  );
+  iceQueueRef.current = [];
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
 
@@ -300,22 +330,36 @@ async function handleAnswer({ room: r, sdp }) {
   await pcRef.current.setRemoteDescription(
     new RTCSessionDescription(sdp)
   );
+    // ✅ APPLY QUEUED ICE
+  iceQueueRef.current.forEach(c =>
+    pcRef.current.addIceCandidate(new RTCIceCandidate(c))
+  );
+  iceQueueRef.current = [];
+
 
   console.log("✅ Remote answer set");
 }
+async function handleIce(data) {
+  console.log("🧊 ICE IN:", data?.candidate?.candidate);
 
-  async function handleIce(data) {
-    if (data.room !== room) return;
-    try {
-      await pcRef.current?.addIceCandidate(
-        new RTCIceCandidate(data.candidate)
-      );
-    } catch {}
+  if (!pcRef.current || !pcRef.current.remoteDescription) {
+    console.warn("⏳ ICE queued (remoteDescription not ready)");
+    iceQueueRef.current.push(data.candidate);
+    return;
   }
-  function handleCallEnd() {
-    toast("⭕ Call ended");
-    teardownCall();
+
+  try {
+    await pcRef.current.addIceCandidate(
+      new RTCIceCandidate(data.candidate)
+    );
+  } catch (err) {
+    console.error("❌ ICE error", err);
   }
+}
+function handleCallEnd() {
+  toast("⭕ Call ended");
+  teardownCall();
+}
 function acceptCall() {
   if (!incomingCall) return;
 
@@ -362,7 +406,7 @@ async function startCallWithRoom(r) {
     },
   });
 
-  const pc = ensurePc();
+  const pc = ensurePc(r);
   const offer = await pc.createOffer({
     offerToReceiveAudio: true,
     offerToReceiveVideo: true,
@@ -479,7 +523,7 @@ async function startCallWithRoom(r) {
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              muted 
+              muted
               className="video-box"
             />
             <div className="video-label">Peer</div>
