@@ -221,49 +221,49 @@ export default function VideoCallPage() {
   // ------------------------------------------------------------
   // WebRTC: PeerConnection
   // ------------------------------------------------------------
-  function ensurePc() {
-    if (pcRef.current) return pcRef.current;
-    const pc = new RTCPeerConnection(pcConfig);
+ function ensurePc() {
+  if (pcRef.current) return pcRef.current;
 
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => {
-        pc.addTrack(track, streamRef.current);
+  const pc = new RTCPeerConnection(pcConfig);
+
+  // ✅ add tracks AFTER pc is created
+  if (streamRef.current) {
+    streamRef.current.getTracks().forEach(track => {
+      pc.addTrack(track, streamRef.current);
+    });
+  }
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate && room) {
+      socket.emit("webrtc_ice_candidate", {
+        room,
+        candidate: e.candidate,
       });
     }
-    pc.onicecandidate = (e) => {
-      if (e.candidate && room) {
-        socket.emit("webrtc_ice_candidate", {
-          room,
-          candidate: e.candidate,
-        });
-      }
-    };
-    pc.ontrack = (e) => {
-      const [remoteStream] = e.streams;
-      console.log("🎥 Remote stream received", remoteStream);
+  };
+
+  pc.ontrack = (e) => {
+    console.log("🎥 ontrack fired", e.streams);
+    const [remoteStream] = e.streams;
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = remoteStream;
-      remoteVideoRef.current
-      .play()
-      .catch(() => console.log("Autoplay blocked"));
     }
-    };
-    pc.onconnectionstatechange = () => {
-      if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
-        teardownCall();
-      }
-    };
-    pcRef.current = pc;
-    return pc;
-  }
- async function handleOffer({ room: r, sdp }) {
-  // ✅ ENSURE ROOM IS SET
+  };
+
+  pc.onconnectionstatechange = () => {
+    console.log("🔗 Connection state:", pc.connectionState);
+    if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
+      teardownCall();
+    }
+  };
+
+  pcRef.current = pc;
+  return pc;
+}
+async function handleOffer({ room: r, sdp }) {
   if (!room) {
     setRoom(r);
   }
-
-  // ❌ REMOVE this line
-  // if (r !== room) return;
 
   if (!streamRef.current) {
     await startLocalMedia();
@@ -271,28 +271,30 @@ export default function VideoCallPage() {
 
   socket.emit("join_room", {
     room: r,
-    user: { _id: myId, name: myName, role: myRole },
+    user: {
+      _id: myId,
+      name: myName,
+      role: myRole,
+    },
   });
 
-  const pc = ensurePc();
+  const pc = ensurePc(); // tracks already added here ✅
 
-  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+  await pc.setRemoteDescription(
+    new RTCSessionDescription(sdp)
+  );
 
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
 
-  socket.emit("webrtc_answer", { room: r, sdp: answer });
+  socket.emit("webrtc_answer", {
+    room: r,
+    sdp: answer,
+  });
 
   setInCall(true);
   toast("✅ Call connected");
 }
-
-  async function handleAnswer({ room: r, sdp }) {
-    if (r !== room) return;
-    await pcRef.current?.setRemoteDescription(
-      new RTCSessionDescription(sdp)
-    );
-  }
   async function handleIce(data) {
     if (data.room !== room) return;
     try {
@@ -728,7 +730,7 @@ async function startCallWithRoom(r) {
             <h3>📞 Incoming Call</h3>
             <p>{incomingCall.fromName} is calling you</p>
             <div className="modal-actions">
-              <button className="accept" onClick={acceptCall}>
+              <button type="button" className="accept" onClick={acceptCall}>
                 Accept
               </button>
               <button className="reject" onClick={rejectCall}>
