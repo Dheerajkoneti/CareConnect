@@ -35,7 +35,7 @@ const authMiddleware = (req, res, next) => {
 /* ==========================================================
    ✅ MAIN NEW ROUTE — Get ALL users (for VideoCall directory)
    ========================================================== */
-router.get("/all", authMiddleware, async (req, res) => {
+router.get("/all", async (req, res) => {
   try {
     const users = await User.find(
       {},
