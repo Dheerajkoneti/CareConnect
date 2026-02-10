@@ -256,34 +256,37 @@ export default function VideoCallPage() {
     pcRef.current = pc;
     return pc;
   }
-  async function handleOffer({ room: r, sdp }) {
-    if (r !== room) return;
-    // 1️⃣ ENSURE MEDIA
-    if (!streamRef.current) {
-      await startLocalMedia();
-    }
-    // 2️⃣ JOIN ROOM
-    socket.emit("join_room", {
-      room: r,
-      user: { _id: myId, name: myName, role: myRole },
-    });
-    // 3️⃣ CREATE PC
-    const pc = ensurePC();
-    // 🔴 CRITICAL FIX: ADD TRACKS HERE (NOT only in ensurePC)
-    streamRef.current.getTracks().forEach(track => {
-      pc.addTrack(track, streamRef.current);
-    });
-    // 4️⃣ APPLY OFFER
-    await pc.setRemoteDescription(
-      new RTCSessionDescription(sdp)
-    );
-    // 5️⃣ ANSWER
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    socket.emit("webrtc_answer", { room: r, sdp: answer });
-    setInCall(true);
-    toast("✅ Call connected");
+ async function handleOffer({ room: r, sdp }) {
+  // ✅ ENSURE ROOM IS SET
+  if (!room) {
+    setRoom(r);
   }
+
+  // ❌ REMOVE this line
+  // if (r !== room) return;
+
+  if (!streamRef.current) {
+    await startLocalMedia();
+  }
+
+  socket.emit("join_room", {
+    room: r,
+    user: { _id: myId, name: myName, role: myRole },
+  });
+
+  const pc = ensurePc();
+
+  await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+
+  socket.emit("webrtc_answer", { room: r, sdp: answer });
+
+  setInCall(true);
+  toast("✅ Call connected");
+}
+
   async function handleAnswer({ room: r, sdp }) {
     if (r !== room) return;
     await pcRef.current?.setRemoteDescription(
@@ -302,15 +305,21 @@ export default function VideoCallPage() {
     toast("⭕ Call ended");
     teardownCall();
   }
-  function acceptCall() {
+function acceptCall() {
   if (!incomingCall) return;
+
+  setRoom(incomingCall.roomId);
+
+  socket.emit("join_room", {
+    room: incomingCall.roomId,
+    user: { _id: myId, name: myName, role: myRole },
+  });
 
   socket.emit("call-accepted", {
     toUserId: incomingCall.fromUser,
     roomId: incomingCall.roomId,
   });
 
-  startCallWithRoom(incomingCall.roomId);
   setIncomingCall(null);
 }
 function rejectCall() {
@@ -343,12 +352,6 @@ async function startCallWithRoom(r) {
   });
 
   const pc = ensurePc();
-
-  // 🔥🔥🔥 THIS WAS MISSING 🔥🔥🔥
-  streamRef.current.getTracks().forEach((track) => {
-    pc.addTrack(track, streamRef.current);
-  });
-
   const offer = await pc.createOffer({
     offerToReceiveAudio: true,
     offerToReceiveVideo: true,
