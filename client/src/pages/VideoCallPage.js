@@ -252,23 +252,22 @@ export default function VideoCallPage() {
         });
       }
     };
+    pc.oniceconnectionstatechange = () => {
+      console.log("ICE STATE:", pc.iceConnectionState);
+    };
+    pc.ontrack = (event) => {
+      console.log("🔥 TRACK RECEIVED:", event.streams);
 
-  pc.ontrack = (event) => {
-    console.log("🔥 REMOTE TRACK:", event.track.kind);
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = event.streams[0];
 
-    // ✅ Add track to shared remote stream
-    remoteStreamRef.current.addTrack(event.track);
+        remoteVideoRef.current
+          .play()
+          .then(() => console.log("▶️ Remote video playing"))
+          .catch(err => console.log("Autoplay blocked:", err));
+      }
+    };
 
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteStreamRef.current;
-
-      // ✅ Force playback (critical)
-      remoteVideoRef.current
-        .play()
-        .then(() => console.log("▶️ Remote video playing"))
-        .catch(err => console.warn("⚠️ Autoplay blocked:", err));
-    }
-  };
     pc.onconnectionstatechange = () => {
       console.log("🔗 PC:", pc.connectionState);
       if (pc.connectionState === "failed") {
@@ -557,7 +556,7 @@ export default function VideoCallPage() {
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              
+              muted
               className="video-box"
             />
             <div className="video-label">Peer</div>
