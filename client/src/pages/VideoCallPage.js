@@ -258,16 +258,12 @@ export default function VideoCallPage() {
     pc.ontrack = (event) => {
       console.log("🔥 TRACK RECEIVED:", event.streams);
 
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
+      const stream = event.streams[0];
 
-        remoteVideoRef.current
-          .play()
-          .then(() => console.log("▶️ Remote video playing"))
-          .catch(err => console.log("Autoplay blocked:", err));
+      if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== stream) {
+        remoteVideoRef.current.srcObject = stream;
       }
     };
-
     pc.onconnectionstatechange = () => {
       console.log("🔗 PC:", pc.connectionState);
       if (pc.connectionState === "failed") {
