@@ -82,6 +82,8 @@ export default function VideoCallPage() {
   const remoteVideoRef = useRef(null);
   const streamRef = useRef(null);
   const pcRef = useRef(null);
+  const remoteStreamRef = useRef(new MediaStream());
+
   // ------------------------------------------------------------
   // Presence & Directory
   // ------------------------------------------------------------
@@ -251,22 +253,20 @@ export default function VideoCallPage() {
       }
     };
 
-    pc.ontrack = (event) => {
+  pc.ontrack = (event) => {
     console.log("🔥 REMOTE TRACK:", event.track.kind);
 
-    if (!remoteVideoRef.current) return;
+    // ✅ Add track to shared remote stream
+    remoteStreamRef.current.addTrack(event.track);
 
-    const remoteStream = event.streams[0];
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStreamRef.current;
 
-    // ✅ SET STREAM ONCE
-    if (remoteVideoRef.current.srcObject !== remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-
-      // ✅ FORCE PLAY (REQUIRED)
+      // ✅ Force playback (critical)
       remoteVideoRef.current
         .play()
         .then(() => console.log("▶️ Remote video playing"))
-        .catch(err => console.error("❌ Autoplay blocked:", err));
+        .catch(err => console.warn("⚠️ Autoplay blocked:", err));
     }
   };
     pc.onconnectionstatechange = () => {
@@ -282,30 +282,43 @@ export default function VideoCallPage() {
   async function handleOffer({ room: r, sdp }) {
     console.log("📨 Offer received for room:", r);
 
-    // Always sync room
+    /* 🔥 RESET REMOTE STREAM */
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach(t => t.stop());
+    }
+    remoteStreamRef.current = new MediaStream();
+
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+
+    /* 🔥 RESET PEER CONNECTION */
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+      pcRoomRef.current = null;
+    }
+
     setRoom(r);
 
-    // Ensure media FIRST
+    /* ✅ ENSURE LOCAL MEDIA */
     if (!streamRef.current) {
       await startLocalMedia();
     }
 
-    // 🔥 CRITICAL: create PC BEFORE join + SDP
+    /* ✅ CREATE PC (DO NOT JOIN ROOM AGAIN) */
     const pc = ensurePc(r);
-    socket.emit("join_room", {
-      room: r,
-      user: {
-        _id: myId,
-        name: myName,
-        role: myRole,
-      },
-    });
-    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-      // ✅ APPLY QUEUED ICE
+
+    await pc.setRemoteDescription(
+      new RTCSessionDescription(sdp)
+    );
+
+    /* ✅ APPLY ICE */
     iceQueueRef.current.forEach(c =>
       pc.addIceCandidate(new RTCIceCandidate(c))
     );
     iceQueueRef.current = [];
+
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
@@ -317,6 +330,7 @@ export default function VideoCallPage() {
     setInCall(true);
     toast("✅ Call connected");
   }
+
   async function handleAnswer({ room: r, sdp }) {
     if (r !== room) return;
 
@@ -387,53 +401,53 @@ export default function VideoCallPage() {
   // WebRTC Start Call
   // ------------------------------------------------------------
   async function startCallWithRoom(r) {
-  if (!r) return;
+    remoteStreamRef.current = new MediaStream();
+    if (!r) return;
 
-  console.log("📞 Starting call for room:", r);
+    console.log("📞 Starting call for room:", r);
 
-  setRoom(r);
+    setRoom(r);
 
-  // ✅ Ensure local media exists FIRST
-  if (!streamRef.current) {
-    await startLocalMedia();
+    // ✅ Ensure local media exists FIRST
+    if (!streamRef.current) {
+      await startLocalMedia();
+    }
+
+    // ✅ JOIN ROOM FIRST (VERY IMPORTANT)
+    socket.emit("join_room", {
+      room: r,
+      user: {
+        _id: myId,
+        name: myName,
+        role: myRole,
+      },
+    });
+
+    // ✅ Small delay to ensure socket room sync
+    await new Promise((res) => setTimeout(res, 100));
+
+    // ✅ Create / reuse PeerConnection AFTER join
+    const pc = ensurePc(r);
+
+    console.log("📡 Creating WebRTC offer...");
+
+    const offer = await pc.createOffer({
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: true,
+    });
+
+    await pc.setLocalDescription(offer);
+
+    console.log("📨 Sending offer to room:", r);
+
+    socket.emit("webrtc_offer", {
+      room: r,
+      sdp: offer,
+    });
+
+    setInCall(true);
+    toast("📞 Calling user...");
   }
-
-  // ✅ JOIN ROOM FIRST (VERY IMPORTANT)
-  socket.emit("join_room", {
-    room: r,
-    user: {
-      _id: myId,
-      name: myName,
-      role: myRole,
-    },
-  });
-
-  // ✅ Small delay to ensure socket room sync
-  await new Promise((res) => setTimeout(res, 100));
-
-  // ✅ Create / reuse PeerConnection AFTER join
-  const pc = ensurePc(r);
-
-  console.log("📡 Creating WebRTC offer...");
-
-  const offer = await pc.createOffer({
-    offerToReceiveAudio: true,
-    offerToReceiveVideo: true,
-  });
-
-  await pc.setLocalDescription(offer);
-
-  console.log("📨 Sending offer to room:", r);
-
-  socket.emit("webrtc_offer", {
-    room: r,
-    sdp: offer,
-  });
-
-  setInCall(true);
-  toast("📞 Calling user...");
-}
-
   // ------------------------------------------------------------
   // Chat
   // ------------------------------------------------------------
@@ -484,15 +498,20 @@ export default function VideoCallPage() {
     teardownCall();
   }
   function teardownCall() {
-    setInCall(false);
-    if (pcRef.current) {
-      pcRef.current.close();
-      pcRef.current = null;
-    }
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = null;
-    }
+  setInCall(false);
+
+  if (pcRef.current) {
+    pcRef.current.close();
+    pcRef.current = null;
   }
+
+  pcRoomRef.current = null;   // 🔥 ADD THIS
+
+  if (remoteVideoRef.current) {
+    remoteVideoRef.current.srcObject = null;
+  }
+}
+
   function teardownEverything() {
     teardownCall();
     stopLocalMedia();
@@ -538,7 +557,7 @@ export default function VideoCallPage() {
               ref={remoteVideoRef}
               autoPlay
               playsInline
-            
+              
               className="video-box"
             />
             <div className="video-label">Peer</div>
